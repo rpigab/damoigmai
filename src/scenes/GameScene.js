@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
-import { generateAllSprites } from '../sprites.js';
 import { sfx } from '../audio.js';
+import { WORLD_NAMES, createWorldBackground } from '../backgrounds.js';
 
 const W = 480, H = 270;
-const PLAYER_SPEED = 180;
+const PLAYER_SPEED   = 180;
+const WAVES_PER_WORLD = 3;
 
 const ENEMY_DEF = {
   1: { hp: 1, speed: 160, pts: 100, shootMs: 3500 },
@@ -22,17 +23,32 @@ const AMMO = { spread: 60, plasma: 25 };
 const WEAPON_COLORS = { gatling: 0xddcc00, spread: 0x00aadd, plasma: 0xff6600 };
 const WEAPON_NAMES  = { gatling: 'GATLING', spread: 'SPREAD ', plasma: 'PLASMA ' };
 
+// ---- Highscores (endless mode) ----
+function loadScores() {
+  try { return JSON.parse(localStorage.getItem('damoigmai_hs') || '[]'); }
+  catch { return []; }
+}
+function saveScore(score) {
+  const scores = loadScores();
+  scores.push(score);
+  scores.sort((a, b) => b - a);
+  const rank = scores.findIndex(s => s === score);
+  localStorage.setItem('damoigmai_hs', JSON.stringify(scores.slice(0, 5)));
+  return rank < 5 ? rank : -1;
+}
+
 export default class GameScene extends Phaser.Scene {
   constructor() { super('GameScene'); }
 
   // -------------------------------------------------------------------------
-  preload() {
-    generateAllSprites(this);
-  }
-
-  // -------------------------------------------------------------------------
   create() {
-    this.stars = this.add.tileSprite(0, 0, W, H, 'stars').setOrigin(0, 0).setDepth(0);
+    const data = this.scene.settings.data ?? {};
+    this.mode       = data.mode  ?? 'endless';
+    this.worldIndex = data.world ?? 0;
+    this.score      = data.score ?? 0;
+
+    // Background parallax layers
+    this.bgLayers = createWorldBackground(this, this.worldIndex);
 
     this.bullets      = this.physics.add.group();
     this.enemyBullets = this.physics.add.group();
@@ -48,66 +64,86 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player,       this.powerups, this.onPickupPowerup,   null, this);
 
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.keys    = this.input.keyboard.addKeys('W,A,S,D,Z,R,Q');
+    this.keys    = this.input.keyboard.addKeys('W,A,S,D,Z,R,Q,M');
     this.ctrlKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL);
 
-    // Game state
-    this.score       = 0;
+    this.score       = data.score ?? 0;
     this.lives       = 3;
     this.fireCD      = 0;
     this.invTimer    = 0;
     this.dead        = false;
+    this.worldDone   = false;
+    this.gameOverReady  = false;
     this.waveActive  = false;
     this.waveCanEnd  = false;
-    this.wave        = 0;
+    this.wave        = this.worldIndex * WAVES_PER_WORLD; // base for this world
 
-    // Weapon stack — base GATLING is always implicit at bottom
-    this.weaponStack = [];  // [{type, ammo, maxAmmo}], most recent = last
+    this.weaponStack = [];
+    this.clones      = [];
+    this.cloneGroup  = this.physics.add.group();
+    this.padCloneBtn = false;
 
-    // Clones — [{sprite, offsetX, offsetY}], max 2
-    this.clones     = [];
-    this.cloneGroup = this.physics.add.group();
-    this.padCloneBtn = false; // tracks Y button previous state for JustDown
-
-    // Notify when a gamepad connects
     this.input.gamepad.on('connected', () => {
       const t = this.add.text(W / 2, 40, 'MANETTE CONNECTÉE', {
         fontFamily: 'monospace', fontSize: '8px', color: '#88ff88',
       }).setOrigin(0.5).setDepth(30);
       this.tweens.add({ targets: t, y: 20, alpha: 0, duration: 2500, onComplete: () => t.destroy() });
     });
-    this.physics.add.overlap(
-      this.enemyBullets, this.cloneGroup,
-      this.onEnemyBulletHitClone, null, this,
-    );
-    this.physics.add.overlap(
-      this.cloneGroup, this.powerups,
-      this.onPickupPowerup, null, this,
-    );
 
-    // Enemy group tracking for powerup drops
+    this.physics.add.overlap(this.enemyBullets, this.cloneGroup, this.onEnemyBulletHitClone, null, this);
+    this.physics.add.overlap(this.cloneGroup,   this.powerups,   this.onPickupPowerup,        null, this);
+
     this.nextGroupId  = 1;
-    this.enemyGroups  = {};  // id -> { total, killed, dropX, dropY, powerupType }
-    this.powerupCycle = 0;   // alternates spread/plasma
+    this.enemyGroups  = {};
+    this.powerupCycle = 0;
+
+    // Gamepad tracking for game-over screen
+    this._goA = false; this._goB = false; this._goStart = false; this._goBack = false;
 
     // HUD
     const hs = { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' };
-    this.scoreTxt = this.add.text(W - 6, 6, 'SCORE 0', hs).setOrigin(1, 0).setDepth(20);
+    this.scoreTxt = this.add.text(W - 6, 6, `SCORE ${this.score}`, hs).setOrigin(1, 0).setDepth(20);
     this.livesTxt = this.add.text(6, 6, '♥ ♥ ♥', { ...hs, color: '#ff4455' }).setOrigin(0, 0).setDepth(20);
+
+    if (this.mode === 'story') {
+      this.worldTxt = this.add.text(W / 2, 6, `M${this.worldIndex + 1} ${WORLD_NAMES[this.worldIndex]}`, {
+        fontFamily: 'monospace', fontSize: '8px', color: '#aaddee',
+      }).setOrigin(0.5, 0).setDepth(20);
+    }
 
     this.createWeaponHUD();
 
-    this.time.delayedCall(800, () => this.startWave());
+    if (this.mode === 'story') {
+      this.showWorldIntro(() => this.startWave());
+    } else {
+      this.time.delayedCall(800, () => this.startWave());
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  showWorldIntro(callback) {
+    const bg  = this.add.rectangle(W / 2, H / 2, 300, 72, 0x000000, 0.82).setDepth(30);
+    const t1  = this.add.text(W / 2, H / 2 - 16, `MONDE ${this.worldIndex + 1}`, {
+      fontFamily: 'monospace', fontSize: '20px', color: '#00eeff',
+    }).setOrigin(0.5).setDepth(31);
+    const t2  = this.add.text(W / 2, H / 2 + 8, WORLD_NAMES[this.worldIndex], {
+      fontFamily: 'monospace', fontSize: '11px', color: '#aaddee',
+    }).setOrigin(0.5).setDepth(31);
+
+    this.time.delayedCall(1800, () => {
+      this.tweens.add({
+        targets: [bg, t1, t2], alpha: 0, duration: 500,
+        onComplete: () => { bg.destroy(); t1.destroy(); t2.destroy(); callback(); },
+      });
+    });
   }
 
   // -------------------------------------------------------------------------
   createWeaponHUD() {
-    // 4 slots, bottom-right corner, slot 0 = current (bottom), slot N = oldest (top)
     this.weaponSlots = [];
     for (let i = 0; i < 4; i++) {
       const ry = H - 10 - i * 16;
       const x0 = W - 104;
-
       const bg   = this.add.rectangle(x0 + 48, ry, 98, 13, 0x000000, 0.4).setOrigin(0.5).setDepth(19);
       const icon = this.add.rectangle(x0 + 4, ry, 8, 8, 0xffffff).setOrigin(0.5).setDepth(20);
       const name = this.add.text(x0 + 12, ry, '', {
@@ -118,7 +154,6 @@ export default class GameScene extends Phaser.Scene {
       const inf   = this.add.text(x0 + 57, ry, '∞', {
         fontFamily: 'monospace', fontSize: '8px', color: '#666666',
       }).setOrigin(0, 0.5).setDepth(20);
-
       [bg, icon, name, barBg, bar, inf].forEach(o => o.setVisible(false));
       this.weaponSlots.push({ bg, icon, name, barBg, bar, inf });
     }
@@ -126,36 +161,26 @@ export default class GameScene extends Phaser.Scene {
   }
 
   updateWeaponHUD() {
-    // Build full display list — base first, then stack, reversed so index 0 = current
-    const fullStack = [
-      { type: 'gatling', ammo: Infinity, maxAmmo: Infinity },
-      ...this.weaponStack,
-    ];
-    const display = fullStack.slice().reverse(); // display[0] = most recent = current
-
+    const fullStack = [{ type: 'gatling', ammo: Infinity, maxAmmo: Infinity }, ...this.weaponStack];
+    const display   = fullStack.slice().reverse();
     this.weaponSlots.forEach((slot, i) => {
       if (i >= display.length) {
         [slot.bg, slot.icon, slot.name, slot.barBg, slot.bar, slot.inf].forEach(o => o.setVisible(false));
         return;
       }
-      const w = display[i];
-      const isCurrent = (i === 0);
-      const alpha = isCurrent ? 1 : 0.45;
-
+      const w = display[i], isCurrent = (i === 0), alpha = isCurrent ? 1 : 0.45;
       slot.bg.setAlpha(isCurrent ? 0.55 : 0.25).setVisible(true);
       slot.icon.setFillStyle(WEAPON_COLORS[w.type]).setAlpha(alpha).setVisible(true);
       slot.name.setText(WEAPON_NAMES[w.type]).setAlpha(alpha)
-               .setStyle({ fontSize: isCurrent ? '8px' : '7px', color: '#ffffff' })
+               .setStyle({ fontFamily: 'monospace', fontSize: isCurrent ? '8px' : '7px', color: '#ffffff' })
                .setVisible(true);
-
       if (w.ammo === Infinity) {
-        slot.barBg.setVisible(false);
-        slot.bar.setVisible(false);
+        slot.barBg.setVisible(false); slot.bar.setVisible(false);
         slot.inf.setAlpha(alpha).setVisible(true);
       } else {
         const ratio = Math.max(0, w.ammo / w.maxAmmo);
-        const bw = Math.max(1, Math.round(33 * ratio));
-        const col = ratio > 0.5 ? 0x33cc33 : ratio > 0.25 ? 0xddcc00 : 0xdd2200;
+        const bw    = Math.max(1, Math.round(33 * ratio));
+        const col   = ratio > 0.5 ? 0x33cc33 : ratio > 0.25 ? 0xddcc00 : 0xdd2200;
         slot.barBg.setAlpha(alpha).setVisible(true);
         slot.bar.setSize(bw, 4).setFillStyle(col).setAlpha(alpha).setVisible(true);
         slot.inf.setVisible(false);
@@ -165,25 +190,27 @@ export default class GameScene extends Phaser.Scene {
 
   // -------------------------------------------------------------------------
   getCurrentWeaponType() {
-    if (this.weaponStack.length === 0) return 'gatling';
-    return this.weaponStack[this.weaponStack.length - 1].type;
+    return this.weaponStack.length === 0 ? 'gatling' : this.weaponStack[this.weaponStack.length - 1].type;
   }
 
   consumeAmmo() {
     if (this.weaponStack.length === 0) return;
     const top = this.weaponStack[this.weaponStack.length - 1];
     top.ammo--;
-    if (top.ammo <= 0) {
-      this.weaponStack.pop();
-    }
+    if (top.ammo <= 0) this.weaponStack.pop();
     this.updateWeaponHUD();
   }
 
   // -------------------------------------------------------------------------
   update(time, delta) {
-    if (this.dead) return;
+    this.bgLayers.forEach(l => { l.sprite.tilePositionX += l.speedX; });
 
-    this.stars.tilePositionX += 0.6;
+    if (this.worldDone) return;
+
+    if (this.dead) {
+      this.handleGameOverPad();
+      return;
+    }
 
     this.handleMovement();
     this.updateClones();
@@ -194,13 +221,45 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.waveActive && this.waveCanEnd && this.enemies.countActive(true) === 0) {
       this.waveActive = false;
-      this.time.delayedCall(2200, () => this.startWave());
+      if (this.mode === 'story' && this.wave >= (this.worldIndex + 1) * WAVES_PER_WORLD) {
+        this.time.delayedCall(900, () => this.triggerWorldComplete());
+      } else {
+        this.time.delayedCall(2200, () => this.startWave());
+      }
+    }
+  }
+
+  handleGameOverPad() {
+    if (!this.gameOverReady) return;
+    const pad = this.input.gamepad?.pad1 ?? null;
+    if (!pad) return;
+
+    const aBtn    = pad.buttons[0]?.pressed  ?? false;
+    const bBtn    = pad.buttons[1]?.pressed  ?? false;
+    const start   = pad.buttons[9]?.pressed  ?? false;
+    const back    = pad.buttons[8]?.pressed  ?? false;
+
+    if ((aBtn && !this._goA) || (start && !this._goStart)) {
+      this.gameOverReady = false;
+      this.doRestart();
+    } else if ((bBtn && !this._goB) || (back && !this._goBack)) {
+      this.gameOverReady = false;
+      this.scene.start('MenuScene');
+    }
+
+    this._goA = aBtn; this._goB = bBtn; this._goStart = start; this._goBack = back;
+  }
+
+  doRestart() {
+    if (this.mode === 'story') {
+      this.scene.start('GameScene', { mode: 'story', world: 0, score: 0 });
+    } else {
+      this.scene.restart({ mode: 'endless', world: 0, score: 0 });
     }
   }
 
   // -------------------------------------------------------------------------
   handleMovement() {
-    // Xbox: left stick / D-pad = move, Y = clone, LT = decouple (in updateClones)
     const pad  = this.input.gamepad?.pad1 ?? null;
     const DEAD = 0.15;
     const ax   = pad ? (pad.axes[0]?.getValue() ?? 0) : 0;
@@ -215,7 +274,6 @@ export default class GameScene extends Phaser.Scene {
 
     let vx = left ? -PLAYER_SPEED : right ? PLAYER_SPEED : 0;
     let vy = up   ? -PLAYER_SPEED : down  ? PLAYER_SPEED : 0;
-    // Analog stick gives proportional speed
     if (gx !== 0) vx = gx * PLAYER_SPEED;
     if (gy !== 0) vy = gy * PLAYER_SPEED;
 
@@ -223,7 +281,6 @@ export default class GameScene extends Phaser.Scene {
     this.player.x = Phaser.Math.Clamp(this.player.x, 20, W - 20);
     this.player.y = Phaser.Math.Clamp(this.player.y, 16, H - 16);
 
-    // Clone invoke: Q key or Y button (JustDown in both cases)
     const yNow = pad?.buttons[3]?.pressed ?? false;
     if (Phaser.Input.Keyboard.JustDown(this.keys.Q) || (yNow && !this.padCloneBtn)) {
       this.tryInvokeClone();
@@ -234,9 +291,8 @@ export default class GameScene extends Phaser.Scene {
   handleFire(delta) {
     this.fireCD -= delta;
     const pad     = this.input.gamepad?.pad1 ?? null;
-    const padFire = (pad?.buttons[7]?.value ?? 0) > 0.1   // RT
-                 || (pad?.buttons[0]?.pressed ?? false);   // A
-    const firing = this.cursors.space.isDown || this.keys.Z.isDown || padFire;
+    const padFire = (pad?.buttons[7]?.value ?? 0) > 0.1 || (pad?.buttons[0]?.pressed ?? false);
+    const firing  = this.cursors.space.isDown || this.keys.Z.isDown || padFire;
     if (firing && this.fireCD <= 0) {
       this.fire();
       this.fireCD = FIRE_CONFIG[this.getCurrentWeaponType()].cooldown;
@@ -245,16 +301,8 @@ export default class GameScene extends Phaser.Scene {
 
   fire() {
     const w = this.getCurrentWeaponType();
-
-    // Player fires
     this.fireBurstAt(this.player.x + this.player.width * 0.45, this.player.y, w);
-
-    // Each clone fires for free
-    this.clones.forEach(c => {
-      this.fireBurstAt(c.sprite.x + c.sprite.width * 0.45, c.sprite.y, w);
-    });
-
-    // Sound + ammo consumed once
+    this.clones.forEach(c => this.fireBurstAt(c.sprite.x + c.sprite.width * 0.45, c.sprite.y, w));
     switch (w) {
       case 'gatling': sfx.shoot1(); break;
       case 'spread':  sfx.shoot2(); break;
@@ -289,95 +337,56 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // -------------------------------------------------------------------------
-  // Clone system
-
   tryInvokeClone() {
-    if (this.clones.length >= 2) return;           // max 2 clones
+    if (this.clones.length >= 2) return;
     if (this.weaponStack.length < 2) {
-      // Not enough powerups — brief red flash on HUD
       this.tweens.add({ targets: this.weaponSlots[0].bg, fillColor: 0xff0000, duration: 80, yoyo: true });
       return;
     }
-
-    // Sacrifice top 2 weapons
     this.weaponStack.splice(this.weaponStack.length - 2, 2);
     this.updateWeaponHUD();
-
-    this.addClone(this.clones.length + 1); // 1 = clone B, 2 = super clone C
+    this.addClone(this.clones.length + 1);
     sfx.summon();
   }
 
   addClone(index) {
     const offset = this.computeCloneOffset(index);
-    const tint   = index === 1 ? 0x44ddff : 0xdd44ff; // cyan / purple
-
-    const sprite = this.physics.add.sprite(
-      this.player.x + offset.x,
-      this.player.y + offset.y,
-      'player',
-    );
+    const tint   = index === 1 ? 0x44ddff : 0xdd44ff;
+    const sprite = this.physics.add.sprite(this.player.x + offset.x, this.player.y + offset.y, 'player');
     sprite.setTint(tint).setAlpha(0.82).setDepth(10);
     this.cloneGroup.add(sprite);
     this.clones.push({ sprite, offsetX: offset.x, offsetY: offset.y });
-
-    // Spawn flash
     const flash = this.add.circle(sprite.x, sprite.y, 18, 0xffffff, 0.9).setDepth(25);
-    this.tweens.add({
-      targets: flash, scaleX: 3, scaleY: 3, alpha: 0, duration: 350,
-      onComplete: () => flash.destroy(),
-    });
+    this.tweens.add({ targets: flash, scaleX: 3, scaleY: 3, alpha: 0, duration: 350, onComplete: () => flash.destroy() });
   }
 
   computeCloneOffset(index) {
     if (index === 1) return { x: 0, y: -34 };
-
-    // Super clone C: rotate current AB vector by 60° CCW in math coords
-    // = CW on screen (y-down), forming equilateral triangle ABC CW.
-    // Use sprite positions, not stored offsets — offsets drift when Ctrl is held.
     const b = this.clones[0];
-    const bx = b.sprite.x - this.player.x;
-    const by = b.sprite.y - this.player.y;
+    const bx = b.sprite.x - this.player.x, by = b.sprite.y - this.player.y;
     const cos60 = 0.5, sin60 = Math.sqrt(3) / 2;
-    return {
-      x: bx * cos60 - by * sin60,
-      y: bx * sin60 + by * cos60,
-    };
+    return { x: bx * cos60 - by * sin60, y: bx * sin60 + by * cos60 };
   }
 
   updateClones() {
     if (this.clones.length === 0) return;
     const pad      = this.input.gamepad?.pad1 ?? null;
-    const decoupled = this.ctrlKey.isDown || (pad?.buttons[6]?.value ?? 0) > 0.1; // Ctrl or LT
-
-    // Clone B — follows player or stays in place (Ctrl)
+    const decoupled = this.ctrlKey.isDown || (pad?.buttons[6]?.value ?? 0) > 0.1;
     const b = this.clones[0];
-    if (decoupled) {
-      b.offsetX = b.sprite.x - this.player.x;
-      b.offsetY = b.sprite.y - this.player.y;
-    } else {
-      b.sprite.x = this.player.x + b.offsetX;
-      b.sprite.y = this.player.y + b.offsetY;
-    }
-
-    // Clone C — always the third vertex of equilateral triangle ABC (CW on screen)
-    // Recomputed every frame from current A and B positions so the triangle is
-    // always coherent, including when B is decoupled.
+    if (decoupled) { b.offsetX = b.sprite.x - this.player.x; b.offsetY = b.sprite.y - this.player.y; }
+    else { b.sprite.x = this.player.x + b.offsetX; b.sprite.y = this.player.y + b.offsetY; }
     if (this.clones.length >= 2) {
       const c = this.clones[1];
-      const bx = b.sprite.x - this.player.x;
-      const by = b.sprite.y - this.player.y;
+      const bx = b.sprite.x - this.player.x, by = b.sprite.y - this.player.y;
       const cos60 = 0.5, sin60 = Math.sqrt(3) / 2;
-      c.offsetX = bx * cos60 - by * sin60;
-      c.offsetY = bx * sin60 + by * cos60;
-      c.sprite.x = this.player.x + c.offsetX;
-      c.sprite.y = this.player.y + c.offsetY;
+      c.offsetX = bx * cos60 - by * sin60; c.offsetY = bx * sin60 + by * cos60;
+      c.sprite.x = this.player.x + c.offsetX; c.sprite.y = this.player.y + c.offsetY;
     }
   }
 
   onEnemyBulletHitClone(bullet, cloneSprite) {
     bullet.destroy();
     sfx.cloneAbsorb();
-    // Brief white flash on clone
     cloneSprite.setTint(0xffffff);
     this.time.delayedCall(80, () => {
       if (!cloneSprite.active) return;
@@ -392,7 +401,7 @@ export default class GameScene extends Phaser.Scene {
     this.waveActive = true;
     this.waveCanEnd = false;
 
-    const schedule = this.buildWaveSchedule();
+    const schedule  = this.buildWaveSchedule();
     const lastDelay = schedule.reduce((m, s) => Math.max(m, s.delay), 0);
 
     schedule.forEach(({ type, delay, groupId }) => {
@@ -403,7 +412,6 @@ export default class GameScene extends Phaser.Scene {
       });
     });
 
-    // Wave can only end 1s after the last enemy has spawned
     this.time.delayedCall(lastDelay + 1000, () => { this.waveCanEnd = true; });
   }
 
@@ -412,55 +420,27 @@ export default class GameScene extends Phaser.Scene {
     const schedule = [];
     let t = 300;
 
-    const single = (type, gap = 450) => {
-      schedule.push({ type, delay: t });
-      t += gap;
-    };
-
-    const group = (type) => {
-      const gid = this.nextGroupId++;
+    const single = (type, gap = 450) => { schedule.push({ type, delay: t }); t += gap; };
+    const group  = (type) => {
+      const gid  = this.nextGroupId++;
       const pType = this.powerupCycle % 2 === 0 ? 'spread' : 'plasma';
       this.powerupCycle++;
       this.enemyGroups[gid] = { total: 4, killed: 0, dropX: W / 2, dropY: H / 2, powerupType: pType };
-      for (let i = 0; i < 4; i++) {
-        schedule.push({ type, delay: t, groupId: gid });
-        t += 320;
-      }
+      for (let i = 0; i < 4; i++) { schedule.push({ type, delay: t, groupId: gid }); t += 320; }
       t += 300;
     };
 
-    // Wave composition ramps up with wave number
-    if (w === 1) {
-      // Intro: one group of 4 type-1 → guaranteed first powerup
-      group(1);
-      single(1); single(1);
-    } else if (w === 2) {
-      single(1); single(1);
-      group(1);
-      single(2);
-    } else if (w === 3) {
-      group(2);
-      single(1); single(1); single(1);
-      single(2);
-    } else {
-      // General escalation
+    if (w === 1) { group(1); single(1); single(1); }
+    else if (w === 2) { single(1); single(1); group(1); single(2); }
+    else if (w === 3) { group(2); single(1); single(1); single(1); single(2); }
+    else {
       const n1 = Math.min(2 + w, 8);
       for (let i = 0; i < n1; i++) single(1);
-
       group(w <= 5 ? 1 : 2);
-
       const n2 = Math.min(Math.floor(w / 2), 5);
       for (let i = 0; i < n2; i++) single(2, 500);
-
-      if (w >= 4) {
-        group(2);
-      }
-
-      if (w >= 5) {
-        const n3 = Math.min(Math.floor((w - 3) / 2), 3);
-        for (let i = 0; i < n3; i++) single(3, 700);
-      }
-
+      if (w >= 4) group(2);
+      if (w >= 5) { const n3 = Math.min(Math.floor((w - 3) / 2), 3); for (let i = 0; i < n3; i++) single(3, 700); }
       if (w >= 6) group(3);
     }
 
@@ -521,15 +501,12 @@ export default class GameScene extends Phaser.Scene {
 
   // -------------------------------------------------------------------------
   onBulletHitEnemy(bullet, enemy) {
-    // Plasma pierces — skip if this bullet already hit this enemy
     if (bullet.hitEnemies) {
       if (bullet.hitEnemies.has(enemy)) return;
       bullet.hitEnemies.add(enemy);
     }
-
     const dmg = bullet.texture.key === 'bullet3' ? 3 : 1;
     enemy.hp -= dmg;
-
     if (enemy.hp <= 0) {
       this.trackGroupKill(enemy);
       const large = enemy.enemyType >= 2;
@@ -543,8 +520,6 @@ export default class GameScene extends Phaser.Scene {
       this.time.delayedCall(90, () => { if (enemy.active) enemy.clearTint(); });
       sfx.hit();
     }
-
-    // Plasma persists for 3 impacts; all other bullets consumed immediately
     if (bullet.piercesLeft !== undefined) {
       bullet.piercesLeft--;
       if (bullet.piercesLeft <= 0) bullet.destroy();
@@ -558,8 +533,7 @@ export default class GameScene extends Phaser.Scene {
     const g = this.enemyGroups[enemy.groupId];
     if (!g) return;
     g.killed++;
-    g.dropX = enemy.x;
-    g.dropY = enemy.y;
+    g.dropX = enemy.x; g.dropY = enemy.y;
     if (g.killed >= g.total) {
       this.spawnPowerup(g.dropX, g.dropY, g.powerupType);
       delete this.enemyGroups[enemy.groupId];
@@ -567,54 +541,26 @@ export default class GameScene extends Phaser.Scene {
   }
 
   spawnPowerup(x, y, type) {
-    const key = `pu_${type}`;
-    const p = this.powerups.create(x, y, key);
+    const p = this.powerups.create(x, y, `pu_${type}`);
     if (!p) return;
     p.setDepth(11);
     p.powerupType = type;
     p.setVelocity(-55, Phaser.Math.Between(-25, 25));
-
-    // Gentle bob
-    this.tweens.add({
-      targets: p,
-      y: y + 12,
-      duration: 700,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
-
-    // Subtle glow pulse via scale
-    this.tweens.add({
-      targets: p,
-      scaleX: 1.15,
-      scaleY: 1.15,
-      duration: 500,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
+    this.tweens.add({ targets: p, y: y + 12, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: p, scaleX: 1.15, scaleY: 1.15, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
   onPickupPowerup(player, powerup) {
     const type = powerup.powerupType;
     const px = powerup.x, py = powerup.y;
     powerup.destroy();
-
     this.weaponStack.push({ type, ammo: AMMO[type], maxAmmo: AMMO[type] });
     this.updateWeaponHUD();
     sfx.pickup();
-
-    // Popup text
-    const label = type === 'spread' ? '+SPREAD' : '+PLASMA';
-    const col   = type === 'spread' ? '#55eeff' : '#ffcc00';
-    const popup = this.add.text(px, py - 8, label, {
-      fontFamily: 'monospace', fontSize: '9px', color: col,
+    const popup = this.add.text(px, py - 8, type === 'spread' ? '+SPREAD' : '+PLASMA', {
+      fontFamily: 'monospace', fontSize: '9px', color: type === 'spread' ? '#55eeff' : '#ffcc00',
     }).setOrigin(0.5).setDepth(25);
-    this.tweens.add({
-      targets: popup, y: py - 30, alpha: 0, duration: 900,
-      onComplete: () => popup.destroy(),
-    });
+    this.tweens.add({ targets: popup, y: py - 30, alpha: 0, duration: 900, onComplete: () => popup.destroy() });
   }
 
   // -------------------------------------------------------------------------
@@ -636,35 +582,21 @@ export default class GameScene extends Phaser.Scene {
     this.lives--;
     this.livesTxt.setText(('♥ ').repeat(Math.max(0, this.lives)).trim());
     this.invTimer = 2200;
-
     if (this.lives <= 0) { this.triggerGameOver(); return; }
-
     sfx.hit();
-    this.tweens.add({
-      targets: this.player, alpha: 0.2, duration: 80,
-      yoyo: true, repeat: 12,
-      onComplete: () => this.player.setAlpha(1),
-    });
+    this.tweens.add({ targets: this.player, alpha: 0.2, duration: 80, yoyo: true, repeat: 12, onComplete: () => this.player.setAlpha(1) });
   }
 
-  tickInvincibility(delta) {
-    if (this.invTimer > 0) this.invTimer -= delta;
-  }
+  tickInvincibility(delta) { if (this.invTimer > 0) this.invTimer -= delta; }
 
   // -------------------------------------------------------------------------
   explodeAt(x, y, large) {
     const r1 = large ? 6 : 3, r2 = large ? 12 : 6, dur = large ? 500 : 320;
     const inner = this.add.circle(x, y, r1, 0xffffff, 1).setDepth(15);
     const outer = this.add.circle(x, y, r2, 0xff6600, 0.85).setDepth(14);
-    this.tweens.add({
-      targets: [inner, outer],
-      scaleX: large ? 5 : 3.5, scaleY: large ? 5 : 3.5,
-      alpha: 0, duration: dur, ease: 'Power2',
-      onComplete: () => { inner.destroy(); outer.destroy(); },
-    });
+    this.tweens.add({ targets: [inner, outer], scaleX: large ? 5 : 3.5, scaleY: large ? 5 : 3.5, alpha: 0, duration: dur, ease: 'Power2', onComplete: () => { inner.destroy(); outer.destroy(); } });
   }
 
-  // -------------------------------------------------------------------------
   cleanup() {
     const m = 60;
     [this.bullets, this.enemyBullets, this.enemies, this.powerups].forEach(g => {
@@ -684,22 +616,94 @@ export default class GameScene extends Phaser.Scene {
     this.clones.forEach(c => c.sprite.destroy());
     this.clones = [];
 
+    let rank = -1;
+    if (this.mode === 'endless') rank = saveScore(this.score);
+
     this.time.delayedCall(800, () => {
-      this.add.rectangle(W / 2, H / 2, 220, 90, 0x000000, 0.85).setDepth(30);
-      this.add.text(W / 2, H / 2 - 26, 'GAME  OVER', {
+      this.add.rectangle(W / 2, H / 2, 280, 130, 0x000000, 0.88).setDepth(30);
+      this.add.text(W / 2, H / 2 - 46, 'GAME  OVER', {
         fontFamily: 'monospace', fontSize: '20px', color: '#ff3344',
       }).setOrigin(0.5).setDepth(31);
-      this.add.text(W / 2, H / 2 + 2, `SCORE  ${this.score}`, {
+
+      if (rank === 0) {
+        this.add.text(W / 2, H / 2 - 26, '★ NOUVEAU RECORD ★', {
+          fontFamily: 'monospace', fontSize: '8px', color: '#ffdd00',
+        }).setOrigin(0.5).setDepth(31);
+      }
+
+      this.add.text(W / 2, H / 2 - 12, `SCORE  ${this.score}`, {
         fontFamily: 'monospace', fontSize: '12px', color: '#ffffff',
       }).setOrigin(0.5).setDepth(31);
-      this.add.text(W / 2, H / 2 + 18, `WAVE  ${this.wave}`, {
-        fontFamily: 'monospace', fontSize: '10px', color: '#aaaaaa',
-      }).setOrigin(0.5).setDepth(31);
-      this.add.text(W / 2, H / 2 + 36, 'PRESS  R  TO  RESTART', {
-        fontFamily: 'monospace', fontSize: '8px', color: '#666688',
+
+      if (this.mode === 'story') {
+        this.add.text(W / 2, H / 2 + 4, `MONDE  ${this.worldIndex + 1}  ·  VAGUE  ${this.wave}`, {
+          fontFamily: 'monospace', fontSize: '8px', color: '#aaaaaa',
+        }).setOrigin(0.5).setDepth(31);
+      } else {
+        this.add.text(W / 2, H / 2 + 4, `VAGUE  ${this.wave}`, {
+          fontFamily: 'monospace', fontSize: '9px', color: '#aaaaaa',
+        }).setOrigin(0.5).setDepth(31);
+
+        // Highscores
+        const scores = loadScores();
+        this.add.text(W / 2, H / 2 + 18, '— HIGHSCORES —', {
+          fontFamily: 'monospace', fontSize: '6px', color: '#446688',
+        }).setOrigin(0.5).setDepth(31);
+        scores.slice(0, 5).forEach((s, i) => {
+          this.add.text(W / 2, H / 2 + 28 + i * 10, `${i + 1}. ${s}`, {
+            fontFamily: 'monospace', fontSize: '7px', color: i === rank ? '#ffdd00' : '#667788',
+          }).setOrigin(0.5).setDepth(31);
+        });
+      }
+
+      const hint = this.mode === 'story'
+        ? 'R/A : recommencer    M/B : menu'
+        : 'R/A : rejouer       M/B : menu';
+      const hintY = this.mode === 'endless' ? H / 2 + 78 : H / 2 + 22;
+      this.add.text(W / 2, hintY, hint, {
+        fontFamily: 'monospace', fontSize: '6px', color: '#445566',
       }).setOrigin(0.5).setDepth(31);
 
-      this.input.keyboard.once('keydown-R', () => this.scene.restart());
+      this.input.keyboard.once('keydown-R', () => { if (this.gameOverReady) { this.gameOverReady = false; this.doRestart(); } });
+      this.input.keyboard.once('keydown-M', () => { if (this.gameOverReady) { this.gameOverReady = false; this.scene.start('MenuScene'); } });
+      this.gameOverReady = true;
     });
+  }
+
+  // -------------------------------------------------------------------------
+  triggerWorldComplete() {
+    this.worldDone = true;
+    const next = this.worldIndex + 1;
+
+    this.add.rectangle(W / 2, H / 2, 320, 80, 0x000000, 0.88).setDepth(30);
+    this.add.text(W / 2, H / 2 - 22, `MONDE ${this.worldIndex + 1} TERMINÉ !`, {
+      fontFamily: 'monospace', fontSize: '16px', color: '#00ff88',
+    }).setOrigin(0.5).setDepth(31);
+    this.add.text(W / 2, H / 2 - 2, `SCORE  ${this.score}`, {
+      fontFamily: 'monospace', fontSize: '10px', color: '#ffffff',
+    }).setOrigin(0.5).setDepth(31);
+
+    if (next < 8) {
+      this.add.text(W / 2, H / 2 + 16, `PROCHAIN : ${WORLD_NAMES[next]}`, {
+        fontFamily: 'monospace', fontSize: '8px', color: '#aaddcc',
+      }).setOrigin(0.5).setDepth(31);
+      this.time.delayedCall(3200, () => {
+        this.scene.start('GameScene', { mode: 'story', world: next, score: this.score });
+      });
+    } else {
+      this.triggerVictory();
+    }
+  }
+
+  triggerVictory() {
+    this.add.text(W / 2, H / 2 + 28, '✦ VICTOIRE TOTALE ✦', {
+      fontFamily: 'monospace', fontSize: '10px', color: '#ffcc00',
+    }).setOrigin(0.5).setDepth(31);
+    this.add.text(W / 2, H / 2 + 44, 'M / B : menu', {
+      fontFamily: 'monospace', fontSize: '7px', color: '#667788',
+    }).setOrigin(0.5).setDepth(31);
+
+    this.input.keyboard.once('keydown-M', () => this.scene.start('MenuScene'));
+    this._victoryPad = true;
   }
 }
