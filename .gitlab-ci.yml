@@ -1,4 +1,4 @@
-image: node:22-alpine
+image: node:22
 
 cache:
   key: $CI_COMMIT_REF_SLUG
