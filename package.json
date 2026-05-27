@@ -1,0 +1,18 @@
+{
+  "name": "damoigmai",
+  "version": "1.0.0",
+  "description": "Space shooter 2D side-scrolling pixel art",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "phaser": "^4.1.0",
+    "vite": "^8.0.14"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  }
+}
