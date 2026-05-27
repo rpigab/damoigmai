@@ -67,6 +67,15 @@ export default class GameScene extends Phaser.Scene {
     // Clones — [{sprite, offsetX, offsetY}], max 2
     this.clones     = [];
     this.cloneGroup = this.physics.add.group();
+    this.padCloneBtn = false; // tracks Y button previous state for JustDown
+
+    // Notify when a gamepad connects
+    this.input.gamepad.on('connected', () => {
+      const t = this.add.text(W / 2, 40, 'MANETTE CONNECTÉE', {
+        fontFamily: 'monospace', fontSize: '8px', color: '#88ff88',
+      }).setOrigin(0.5).setDepth(30);
+      this.tweens.add({ targets: t, y: 20, alpha: 0, duration: 2500, onComplete: () => t.destroy() });
+    });
     this.physics.add.overlap(
       this.enemyBullets, this.cloneGroup,
       this.onEnemyBulletHitClone, null, this,
@@ -191,24 +200,43 @@ export default class GameScene extends Phaser.Scene {
 
   // -------------------------------------------------------------------------
   handleMovement() {
-    const left  = this.cursors.left.isDown  || this.keys.A.isDown;
-    const right = this.cursors.right.isDown || this.keys.D.isDown;
-    const up    = this.cursors.up.isDown    || this.keys.W.isDown;
-    const down  = this.cursors.down.isDown  || this.keys.S.isDown;
+    // Xbox: left stick / D-pad = move, Y = clone, LT = decouple (in updateClones)
+    const pad  = this.input.gamepad?.pad1 ?? null;
+    const DEAD = 0.15;
+    const ax   = pad ? (pad.axes[0]?.getValue() ?? 0) : 0;
+    const ay   = pad ? (pad.axes[1]?.getValue() ?? 0) : 0;
+    const gx   = Math.abs(ax) > DEAD ? ax : 0;
+    const gy   = Math.abs(ay) > DEAD ? ay : 0;
 
-    this.player.setVelocity(
-      left ? -PLAYER_SPEED : right ? PLAYER_SPEED : 0,
-      up   ? -PLAYER_SPEED : down  ? PLAYER_SPEED : 0,
-    );
+    const left  = this.cursors.left.isDown  || this.keys.A.isDown || (pad?.buttons[14]?.pressed ?? false) || gx < 0;
+    const right = this.cursors.right.isDown || this.keys.D.isDown || (pad?.buttons[15]?.pressed ?? false) || gx > 0;
+    const up    = this.cursors.up.isDown    || this.keys.W.isDown || (pad?.buttons[12]?.pressed ?? false) || gy < 0;
+    const down  = this.cursors.down.isDown  || this.keys.S.isDown || (pad?.buttons[13]?.pressed ?? false) || gy > 0;
+
+    let vx = left ? -PLAYER_SPEED : right ? PLAYER_SPEED : 0;
+    let vy = up   ? -PLAYER_SPEED : down  ? PLAYER_SPEED : 0;
+    // Analog stick gives proportional speed
+    if (gx !== 0) vx = gx * PLAYER_SPEED;
+    if (gy !== 0) vy = gy * PLAYER_SPEED;
+
+    this.player.setVelocity(vx, vy);
     this.player.x = Phaser.Math.Clamp(this.player.x, 20, W - 20);
     this.player.y = Phaser.Math.Clamp(this.player.y, 16, H - 16);
 
-    if (Phaser.Input.Keyboard.JustDown(this.keys.Q)) this.tryInvokeClone();
+    // Clone invoke: Q key or Y button (JustDown in both cases)
+    const yNow = pad?.buttons[3]?.pressed ?? false;
+    if (Phaser.Input.Keyboard.JustDown(this.keys.Q) || (yNow && !this.padCloneBtn)) {
+      this.tryInvokeClone();
+    }
+    this.padCloneBtn = yNow;
   }
 
   handleFire(delta) {
     this.fireCD -= delta;
-    const firing = this.cursors.space.isDown || this.keys.Z.isDown;
+    const pad     = this.input.gamepad?.pad1 ?? null;
+    const padFire = (pad?.buttons[7]?.value ?? 0) > 0.1   // RT
+                 || (pad?.buttons[0]?.pressed ?? false);   // A
+    const firing = this.cursors.space.isDown || this.keys.Z.isDown || padFire;
     if (firing && this.fireCD <= 0) {
       this.fire();
       this.fireCD = FIRE_CONFIG[this.getCurrentWeaponType()].cooldown;
@@ -318,7 +346,8 @@ export default class GameScene extends Phaser.Scene {
 
   updateClones() {
     if (this.clones.length === 0) return;
-    const decoupled = this.ctrlKey.isDown;
+    const pad      = this.input.gamepad?.pad1 ?? null;
+    const decoupled = this.ctrlKey.isDown || (pad?.buttons[6]?.value ?? 0) > 0.1; // Ctrl or LT
 
     // Clone B — follows player or stays in place (Ctrl)
     const b = this.clones[0];

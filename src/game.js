@@ -5,6 +5,7 @@ const config = {
   type: Phaser.AUTO,
   backgroundColor: '#00000a',
   pixelArt: true,
+  input: { gamepad: true },
   physics: {
     default: 'arcade',
     arcade: { debug: false, gravity: { y: 0 } },
