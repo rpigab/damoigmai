@@ -71,6 +71,10 @@ export default class GameScene extends Phaser.Scene {
       this.enemyBullets, this.cloneGroup,
       this.onEnemyBulletHitClone, null, this,
     );
+    this.physics.add.overlap(
+      this.cloneGroup, this.powerups,
+      this.onPickupPowerup, null, this,
+    );
 
     // Enemy group tracking for powerup drops
     this.nextGroupId  = 1;
@@ -196,7 +200,7 @@ export default class GameScene extends Phaser.Scene {
       left ? -PLAYER_SPEED : right ? PLAYER_SPEED : 0,
       up   ? -PLAYER_SPEED : down  ? PLAYER_SPEED : 0,
     );
-    this.player.x = Phaser.Math.Clamp(this.player.x, 20, W * 0.45);
+    this.player.x = Phaser.Math.Clamp(this.player.x, 20, W - 20);
     this.player.y = Phaser.Math.Clamp(this.player.y, 16, H - 16);
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.Q)) this.tryInvokeClone();
@@ -296,29 +300,46 @@ export default class GameScene extends Phaser.Scene {
   computeCloneOffset(index) {
     if (index === 1) return { x: 0, y: -34 };
 
-    // Super clone C: rotate vector AB by 60° CCW in math coords
-    // = CW visual on screen (y-down), forming equilateral triangle ABC CW
+    // Super clone C: rotate current AB vector by 60° CCW in math coords
+    // = CW on screen (y-down), forming equilateral triangle ABC CW.
+    // Use sprite positions, not stored offsets — offsets drift when Ctrl is held.
     const b = this.clones[0];
+    const bx = b.sprite.x - this.player.x;
+    const by = b.sprite.y - this.player.y;
     const cos60 = 0.5, sin60 = Math.sqrt(3) / 2;
     return {
-      x: b.offsetX * cos60 - b.offsetY * sin60,
-      y: b.offsetX * sin60 + b.offsetY * cos60,
+      x: bx * cos60 - by * sin60,
+      y: bx * sin60 + by * cos60,
     };
   }
 
   updateClones() {
+    if (this.clones.length === 0) return;
     const decoupled = this.ctrlKey.isDown;
-    this.clones.forEach(c => {
-      if (decoupled) {
-        // Clone stays in place; offset drifts to reflect player's new position
-        c.offsetX = c.sprite.x - this.player.x;
-        c.offsetY = c.sprite.y - this.player.y;
-      } else {
-        // Clone follows player at fixed offset
-        c.sprite.x = this.player.x + c.offsetX;
-        c.sprite.y = this.player.y + c.offsetY;
-      }
-    });
+
+    // Clone B — follows player or stays in place (Ctrl)
+    const b = this.clones[0];
+    if (decoupled) {
+      b.offsetX = b.sprite.x - this.player.x;
+      b.offsetY = b.sprite.y - this.player.y;
+    } else {
+      b.sprite.x = this.player.x + b.offsetX;
+      b.sprite.y = this.player.y + b.offsetY;
+    }
+
+    // Clone C — always the third vertex of equilateral triangle ABC (CW on screen)
+    // Recomputed every frame from current A and B positions so the triangle is
+    // always coherent, including when B is decoupled.
+    if (this.clones.length >= 2) {
+      const c = this.clones[1];
+      const bx = b.sprite.x - this.player.x;
+      const by = b.sprite.y - this.player.y;
+      const cos60 = 0.5, sin60 = Math.sqrt(3) / 2;
+      c.offsetX = bx * cos60 - by * sin60;
+      c.offsetY = bx * sin60 + by * cos60;
+      c.sprite.x = this.player.x + c.offsetX;
+      c.sprite.y = this.player.y + c.offsetY;
+    }
   }
 
   onEnemyBulletHitClone(bullet, cloneSprite) {
