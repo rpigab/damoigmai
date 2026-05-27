@@ -245,16 +245,19 @@ export default class GameScene extends Phaser.Scene {
         this.spawnBullet(x, y, 520,  0,    'bullet2');
         this.spawnBullet(x, y, 520,  0.32, 'bullet2');
         break;
-      case 'plasma':
-        this.spawnBullet(x, y, 360, 0, 'bullet3');
+      case 'plasma': {
+        const b = this.spawnBullet(x, y, 360, 0, 'bullet3');
+        if (b) { b.piercesLeft = 3; b.hitEnemies = new Set(); }
         break;
+      }
     }
   }
 
   spawnBullet(x, y, speed, angle, key) {
     const b = this.bullets.create(x, y, key);
-    if (!b) return;
+    if (!b) return null;
     b.setDepth(8).setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+    return b;
   }
 
   // -------------------------------------------------------------------------
@@ -489,7 +492,12 @@ export default class GameScene extends Phaser.Scene {
 
   // -------------------------------------------------------------------------
   onBulletHitEnemy(bullet, enemy) {
-    bullet.destroy();
+    // Plasma pierces — skip if this bullet already hit this enemy
+    if (bullet.hitEnemies) {
+      if (bullet.hitEnemies.has(enemy)) return;
+      bullet.hitEnemies.add(enemy);
+    }
+
     const dmg = bullet.texture.key === 'bullet3' ? 3 : 1;
     enemy.hp -= dmg;
 
@@ -505,6 +513,14 @@ export default class GameScene extends Phaser.Scene {
       enemy.setTint(0xff6666);
       this.time.delayedCall(90, () => { if (enemy.active) enemy.clearTint(); });
       sfx.hit();
+    }
+
+    // Plasma persists for 3 impacts; all other bullets consumed immediately
+    if (bullet.piercesLeft !== undefined) {
+      bullet.piercesLeft--;
+      if (bullet.piercesLeft <= 0) bullet.destroy();
+    } else {
+      bullet.destroy();
     }
   }
 
