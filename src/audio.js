@@ -65,6 +65,16 @@ export const sfx = {
     setTimeout(() => tone(1000, 2000, 0.2, 'sine', 0.12), 180);
   },
 
+  // Clone summon — harmonic split chord
+  summon() {
+    tone(440, 880, 0.25, 'sine', 0.22);
+    setTimeout(() => tone(554, 1108, 0.25, 'sine', 0.18), 40);
+    setTimeout(() => tone(659, 1318, 0.3, 'sine', 0.15), 80);
+  },
+
+  // Clone absorbs bullet — quick metallic ping
+  cloneAbsorb() { tone(1200, 600, 0.08, 'sine', 0.15); },
+
   // Enemy bullet
   enemyShoot() { tone(400, 200, 0.1, 'sawtooth', 0.08); },
 

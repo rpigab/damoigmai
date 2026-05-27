@@ -48,7 +48,8 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player,       this.powerups, this.onPickupPowerup,   null, this);
 
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.keys    = this.input.keyboard.addKeys('W,A,S,D,Z,R');
+    this.keys    = this.input.keyboard.addKeys('W,A,S,D,Z,R,Q');
+    this.ctrlKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL);
 
     // Game state
     this.score       = 0;
@@ -62,6 +63,14 @@ export default class GameScene extends Phaser.Scene {
 
     // Weapon stack — base GATLING is always implicit at bottom
     this.weaponStack = [];  // [{type, ammo, maxAmmo}], most recent = last
+
+    // Clones — [{sprite, offsetX, offsetY}], max 2
+    this.clones     = [];
+    this.cloneGroup = this.physics.add.group();
+    this.physics.add.overlap(
+      this.enemyBullets, this.cloneGroup,
+      this.onEnemyBulletHitClone, null, this,
+    );
 
     // Enemy group tracking for powerup drops
     this.nextGroupId  = 1;
@@ -164,6 +173,7 @@ export default class GameScene extends Phaser.Scene {
     this.stars.tilePositionX += 0.6;
 
     this.handleMovement();
+    this.updateClones();
     this.handleFire(delta);
     this.updateEnemies(time, delta);
     this.tickInvincibility(delta);
@@ -188,6 +198,8 @@ export default class GameScene extends Phaser.Scene {
     );
     this.player.x = Phaser.Math.Clamp(this.player.x, 20, W * 0.45);
     this.player.y = Phaser.Math.Clamp(this.player.y, 16, H - 16);
+
+    if (Phaser.Input.Keyboard.JustDown(this.keys.Q)) this.tryInvokeClone();
   }
 
   handleFire(delta) {
@@ -200,32 +212,125 @@ export default class GameScene extends Phaser.Scene {
   }
 
   fire() {
-    const x = this.player.x + this.player.width * 0.45;
-    const y = this.player.y;
+    const w = this.getCurrentWeaponType();
 
-    switch (this.getCurrentWeaponType()) {
+    // Player fires
+    this.fireBurstAt(this.player.x + this.player.width * 0.45, this.player.y, w);
+
+    // Each clone fires for free
+    this.clones.forEach(c => {
+      this.fireBurstAt(c.sprite.x + c.sprite.width * 0.45, c.sprite.y, w);
+    });
+
+    // Sound + ammo consumed once
+    switch (w) {
+      case 'gatling': sfx.shoot1(); break;
+      case 'spread':  sfx.shoot2(); break;
+      case 'plasma':  sfx.shoot3(); break;
+    }
+    this.consumeAmmo();
+  }
+
+  fireBurstAt(x, y, w) {
+    switch (w) {
       case 'gatling':
         this.spawnBullet(x, y, 620, 0, 'bullet1');
-        sfx.shoot1();
         break;
       case 'spread':
         this.spawnBullet(x, y, 520, -0.32, 'bullet2');
         this.spawnBullet(x, y, 520,  0,    'bullet2');
         this.spawnBullet(x, y, 520,  0.32, 'bullet2');
-        sfx.shoot2();
         break;
       case 'plasma':
         this.spawnBullet(x, y, 360, 0, 'bullet3');
-        sfx.shoot3();
         break;
     }
-    this.consumeAmmo();
   }
 
   spawnBullet(x, y, speed, angle, key) {
     const b = this.bullets.create(x, y, key);
     if (!b) return;
     b.setDepth(8).setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+  }
+
+  // -------------------------------------------------------------------------
+  // Clone system
+
+  tryInvokeClone() {
+    if (this.clones.length >= 2) return;           // max 2 clones
+    if (this.weaponStack.length < 2) {
+      // Not enough powerups — brief red flash on HUD
+      this.tweens.add({ targets: this.weaponSlots[0].bg, fillColor: 0xff0000, duration: 80, yoyo: true });
+      return;
+    }
+
+    // Sacrifice top 2 weapons
+    this.weaponStack.splice(this.weaponStack.length - 2, 2);
+    this.updateWeaponHUD();
+
+    this.addClone(this.clones.length + 1); // 1 = clone B, 2 = super clone C
+    sfx.summon();
+  }
+
+  addClone(index) {
+    const offset = this.computeCloneOffset(index);
+    const tint   = index === 1 ? 0x44ddff : 0xdd44ff; // cyan / purple
+
+    const sprite = this.physics.add.sprite(
+      this.player.x + offset.x,
+      this.player.y + offset.y,
+      'player',
+    );
+    sprite.setTint(tint).setAlpha(0.82).setDepth(10);
+    this.cloneGroup.add(sprite);
+    this.clones.push({ sprite, offsetX: offset.x, offsetY: offset.y });
+
+    // Spawn flash
+    const flash = this.add.circle(sprite.x, sprite.y, 18, 0xffffff, 0.9).setDepth(25);
+    this.tweens.add({
+      targets: flash, scaleX: 3, scaleY: 3, alpha: 0, duration: 350,
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  computeCloneOffset(index) {
+    if (index === 1) return { x: 0, y: -34 };
+
+    // Super clone C: rotate vector AB by 60° CCW in math coords
+    // = CW visual on screen (y-down), forming equilateral triangle ABC CW
+    const b = this.clones[0];
+    const cos60 = 0.5, sin60 = Math.sqrt(3) / 2;
+    return {
+      x: b.offsetX * cos60 - b.offsetY * sin60,
+      y: b.offsetX * sin60 + b.offsetY * cos60,
+    };
+  }
+
+  updateClones() {
+    const decoupled = this.ctrlKey.isDown;
+    this.clones.forEach(c => {
+      if (decoupled) {
+        // Clone stays in place; offset drifts to reflect player's new position
+        c.offsetX = c.sprite.x - this.player.x;
+        c.offsetY = c.sprite.y - this.player.y;
+      } else {
+        // Clone follows player at fixed offset
+        c.sprite.x = this.player.x + c.offsetX;
+        c.sprite.y = this.player.y + c.offsetY;
+      }
+    });
+  }
+
+  onEnemyBulletHitClone(bullet, cloneSprite) {
+    bullet.destroy();
+    sfx.cloneAbsorb();
+    // Brief white flash on clone
+    cloneSprite.setTint(0xffffff);
+    this.time.delayedCall(80, () => {
+      if (!cloneSprite.active) return;
+      const clone = this.clones.find(c => c.sprite === cloneSprite);
+      if (clone) cloneSprite.setTint(clone === this.clones[0] ? 0x44ddff : 0xdd44ff);
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -510,6 +615,8 @@ export default class GameScene extends Phaser.Scene {
     sfx.playerDie();
     this.explodeAt(this.player.x, this.player.y, true);
     this.player.setVisible(false);
+    this.clones.forEach(c => c.sprite.destroy());
+    this.clones = [];
 
     this.time.delayedCall(800, () => {
       this.add.rectangle(W / 2, H / 2, 220, 90, 0x000000, 0.85).setDepth(30);
