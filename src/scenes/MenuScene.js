@@ -11,10 +11,10 @@ export default class MenuScene extends Phaser.Scene {
 
     // Title
     this.add.text(W / 2, 55, 'DAMOIGMAI', {
-      fontFamily: 'monospace', fontSize: '30px', color: '#00ccff',
+      fontFamily: 'Arial', fontSize: '30px', color: '#00ccff',
     }).setOrigin(0.5).setDepth(10);
     this.add.text(W / 2, 82, 'SHOOTEUR GALACTIQUE', {
-      fontFamily: 'monospace', fontSize: '7px', color: '#335577',
+      fontFamily: 'Arial', fontSize: '7px', color: '#335577',
     }).setOrigin(0.5).setDepth(10);
 
     // Menu items
@@ -28,16 +28,16 @@ export default class MenuScene extends Phaser.Scene {
       const y = H / 2 + 10 + i * 48;
       const bg   = this.add.rectangle(W / 2, y, 360, 34, 0x001133, 0.6).setDepth(9);
       const lbl  = this.add.text(W / 2, y - 6, item.label, {
-        fontFamily: 'monospace', fontSize: '14px', color: '#ffffff',
+        fontFamily: 'Arial', fontSize: '14px', color: '#ffffff',
       }).setOrigin(0.5).setDepth(10);
       const sub  = this.add.text(W / 2, y + 9, item.sub, {
-        fontFamily: 'monospace', fontSize: '5px', color: '#557788',
+        fontFamily: 'Arial', fontSize: '5px', color: '#557788',
       }).setOrigin(0.5).setDepth(10);
       return { bg, lbl, sub, mode: item.mode };
     });
 
     this.add.text(W / 2, H - 10, '↑↓ / croix   ESPACE / A : lancer', {
-      fontFamily: 'monospace', fontSize: '6px', color: '#223344',
+      fontFamily: 'Arial', fontSize: '6px', color: '#223344',
     }).setOrigin(0.5).setDepth(10);
 
     this.cursors  = this.input.keyboard.createCursorKeys();
@@ -55,8 +55,8 @@ export default class MenuScene extends Phaser.Scene {
     this.menuItems.forEach((item, i) => {
       const sel = i === this.selected;
       item.bg.setFillStyle(sel ? 0x002255 : 0x000d22, sel ? 0.85 : 0.45);
-      item.lbl.setStyle({ fontFamily: 'monospace', fontSize: sel ? '16px' : '13px', color: sel ? '#00eeff' : '#778899' });
-      item.sub.setStyle({ fontFamily: 'monospace', fontSize: '5px', color: sel ? '#88aabb' : '#445566' });
+      item.lbl.setStyle({ fontFamily: 'Arial', fontSize: sel ? '16px' : '13px', color: sel ? '#00eeff' : '#778899' });
+      item.sub.setStyle({ fontFamily: 'Arial', fontSize: '5px', color: sel ? '#88aabb' : '#445566' });
     });
   }
 
