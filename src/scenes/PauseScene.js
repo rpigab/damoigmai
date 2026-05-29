@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { installKeyboard, justDown } from '../input.js';
-import { stopMusic } from '../music.js';
+import { pauseMusic, resumeMusic, stopMusic } from '../music.js';
 
 const W = 480, H = 270;
 
@@ -37,6 +37,8 @@ export default class PauseScene extends Phaser.Scene {
       fontFamily: 'Arial', fontSize: '9px', color: '#667788',
     }).setOrigin(0.5).setDepth(41);
 
+    pauseMusic();
+
     // The Start / Escape that opened this menu is still held — seed the edge
     // trackers as "pressed" so it doesn't instantly close the pause menu.
     this._padUp = false; this._padDown = false;
@@ -55,6 +57,7 @@ export default class PauseScene extends Phaser.Scene {
   }
 
   resume() {
+    resumeMusic();
     this.scene.stop();
     this.scene.resume('GameScene');
   }

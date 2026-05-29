@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { sfx } from '../audio.js';
 import { startMusic, stopMusic } from '../music.js';
 import { installKeyboard, isDown, justDown } from '../input.js';
-import { WORLD_NAMES, createWorldBackground } from '../backgrounds.js';
+import { createWorldBackground } from '../backgrounds.js';
 
 const W = 480, H = 270;
 const PLAYER_SPEED   = 180;
@@ -23,7 +23,6 @@ const FIRE_CONFIG = {
 const AMMO = { spread: 60, plasma: 25 };
 
 const WEAPON_COLORS = { gatling: 0xddcc00, spread: 0x00aadd, plasma: 0xff6600 };
-const WEAPON_NAMES  = { gatling: 'GATLING', spread: 'SPREAD ', plasma: 'PLASMA ' };
 
 // ---- Highscores (endless mode) ----
 function loadScores() {
@@ -111,40 +110,12 @@ export default class GameScene extends Phaser.Scene {
 
     // HUD
     const hs = { fontFamily: 'Arial', fontSize: '10px', color: '#ffffff' };
-    this.scoreTxt = this.add.text(W - 6, 6, `SCORE ${this.score}`, hs).setOrigin(1, 0).setDepth(20);
+    this.scoreTxt = this.add.text(W - 6, 6, `${this.score}`, hs).setOrigin(1, 0).setDepth(20);
     this.livesTxt = this.add.text(6, 6, '♥ ♥ ♥', { ...hs, color: '#ff4455' }).setOrigin(0, 0).setDepth(20);
-
-    if (this.mode === 'story') {
-      this.worldTxt = this.add.text(W / 2, 6, `M${this.worldIndex + 1} ${WORLD_NAMES[this.worldIndex]}`, {
-        fontFamily: 'Arial', fontSize: '8px', color: '#aaddee',
-      }).setOrigin(0.5, 0).setDepth(20);
-    }
 
     this.createWeaponHUD();
 
-    if (this.mode === 'story') {
-      this.showWorldIntro(() => this.startWave());
-    } else {
-      this.time.delayedCall(800, () => this.startWave());
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  showWorldIntro(callback) {
-    const bg  = this.add.rectangle(W / 2, H / 2, 300, 72, 0x000000, 0.82).setDepth(30);
-    const t1  = this.add.text(W / 2, H / 2 - 16, `MONDE ${this.worldIndex + 1}`, {
-      fontFamily: 'Arial', fontSize: '20px', color: '#00eeff',
-    }).setOrigin(0.5).setDepth(31);
-    const t2  = this.add.text(W / 2, H / 2 + 8, WORLD_NAMES[this.worldIndex], {
-      fontFamily: 'Arial', fontSize: '11px', color: '#aaddee',
-    }).setOrigin(0.5).setDepth(31);
-
-    this.time.delayedCall(1800, () => {
-      this.tweens.add({
-        targets: [bg, t1, t2], alpha: 0, duration: 500,
-        onComplete: () => { bg.destroy(); t1.destroy(); t2.destroy(); callback(); },
-      });
-    });
+    this.time.delayedCall(800, () => this.startWave());
   }
 
   // -------------------------------------------------------------------------
@@ -153,18 +124,17 @@ export default class GameScene extends Phaser.Scene {
     for (let i = 0; i < 4; i++) {
       const ry = H - 10 - i * 16;
       const x0 = W - 104;
-      const bg   = this.add.rectangle(x0 + 48, ry, 98, 13, 0x000000, 0.4).setOrigin(0.5).setDepth(19);
-      const icon = this.add.rectangle(x0 + 4, ry, 8, 8, 0xffffff).setOrigin(0.5).setDepth(20);
-      const name = this.add.text(x0 + 12, ry, '', {
-        fontFamily: 'Arial', fontSize: '7px', color: '#ffffff',
-      }).setOrigin(0, 0.5).setDepth(20);
+      const bg    = this.add.rectangle(x0 + 48, ry, 98, 13, 0x000000, 0.4).setOrigin(0.5).setDepth(19);
+      const icon  = this.add.rectangle(x0 + 4, ry, 8, 8, 0xffffff).setOrigin(0.5).setDepth(20);
+      // bullet-icon graphic replaces the text name
+      const gfx   = this.add.graphics().setDepth(20);
       const barBg = this.add.rectangle(x0 + 57, ry, 33, 4, 0x222233).setOrigin(0, 0.5).setDepth(20);
       const bar   = this.add.rectangle(x0 + 57, ry, 33, 4, 0x44cc44).setOrigin(0, 0.5).setDepth(20);
       const inf   = this.add.text(x0 + 57, ry, '∞', {
         fontFamily: 'Arial', fontSize: '8px', color: '#666666',
       }).setOrigin(0, 0.5).setDepth(20);
-      [bg, icon, name, barBg, bar, inf].forEach(o => o.setVisible(false));
-      this.weaponSlots.push({ bg, icon, name, barBg, bar, inf });
+      [bg, icon, gfx, barBg, bar, inf].forEach(o => o.setVisible(false));
+      this.weaponSlots.push({ bg, icon, gfx, barBg, bar, inf });
     }
     this.updateWeaponHUD();
   }
@@ -174,24 +144,50 @@ export default class GameScene extends Phaser.Scene {
     const display   = fullStack.slice().reverse();
     this.weaponSlots.forEach((slot, i) => {
       if (i >= display.length) {
-        [slot.bg, slot.icon, slot.name, slot.barBg, slot.bar, slot.inf].forEach(o => o.setVisible(false));
+        [slot.bg, slot.icon, slot.gfx, slot.barBg, slot.bar, slot.inf].forEach(o => o.setVisible(false));
+        slot.gfx.clear();
         return;
       }
       const w = display[i], isCurrent = (i === 0), alpha = isCurrent ? 1 : 0.45;
       slot.bg.setAlpha(isCurrent ? 0.55 : 0.25).setVisible(true);
       slot.icon.setFillStyle(WEAPON_COLORS[w.type]).setAlpha(alpha).setVisible(true);
-      slot.name.setText(WEAPON_NAMES[w.type]).setAlpha(alpha)
-               .setStyle({ fontFamily: 'Arial', fontSize: isCurrent ? '8px' : '7px', color: '#ffffff' })
-               .setVisible(true);
+
+      // Draw bullet-icon for the weapon type
+      slot.gfx.clear().setAlpha(alpha).setVisible(true);
+      const col = WEAPON_COLORS[w.type];
+      // Icon area: x0+12 to x0+52, centred at x0+32, row ry
+      const x0 = W - 104, cx = x0 + 32, ry = slot.bg.y;
+      if (w.type === 'gatling') {
+        // single narrow bullet: body + tip
+        slot.gfx.fillStyle(col, 1);
+        slot.gfx.fillRect(cx - 1, ry - 3, 3, 5);
+        slot.gfx.fillRect(cx,     ry - 5, 1, 2);
+      } else if (w.type === 'spread') {
+        // three bullets: centre, upper-left, lower-left  (fan pointing right)
+        slot.gfx.fillStyle(col, 1);
+        slot.gfx.fillRect(cx + 2, ry - 2, 5, 3);   // centre
+        slot.gfx.fillRect(cx - 3, ry - 6, 4, 2);   // upper
+        slot.gfx.fillRect(cx - 3, ry + 4, 4, 2);   // lower
+        slot.gfx.fillRect(cx + 7, ry - 1, 2, 1);   // centre tip
+        slot.gfx.fillRect(cx + 1, ry - 7, 2, 1);   // upper tip
+        slot.gfx.fillRect(cx + 1, ry + 6, 2, 1);   // lower tip
+      } else {
+        // plasma: filled circle
+        slot.gfx.fillStyle(col, 1);
+        slot.gfx.fillCircle(cx, ry, 4);
+        slot.gfx.fillStyle(0xffffff, 0.4);
+        slot.gfx.fillCircle(cx - 1, ry - 1, 1); // highlight
+      }
+
       if (w.ammo === Infinity) {
         slot.barBg.setVisible(false); slot.bar.setVisible(false);
         slot.inf.setAlpha(alpha).setVisible(true);
       } else {
         const ratio = Math.max(0, w.ammo / w.maxAmmo);
         const bw    = Math.max(1, Math.round(33 * ratio));
-        const col   = ratio > 0.5 ? 0x33cc33 : ratio > 0.25 ? 0xddcc00 : 0xdd2200;
+        const col2  = ratio > 0.5 ? 0x33cc33 : ratio > 0.25 ? 0xddcc00 : 0xdd2200;
         slot.barBg.setAlpha(alpha).setVisible(true);
-        slot.bar.setSize(bw, 4).setFillStyle(col).setAlpha(alpha).setVisible(true);
+        slot.bar.setSize(bw, 4).setFillStyle(col2).setAlpha(alpha).setVisible(true);
         slot.inf.setVisible(false);
       }
     });
@@ -433,7 +429,7 @@ export default class GameScene extends Phaser.Scene {
         this.score += ENEMY_DEF[e.enemyType].pts;
         e.destroy();
       });
-      this.scoreTxt.setText(`SCORE ${this.score}`);
+      this.scoreTxt.setText(`${this.score}`);
       // flash screen
       const flash = this.add.rectangle(W / 2, H / 2, W, H, 0xffffff, 0.7).setDepth(50);
       this.tweens.add({ targets: flash, alpha: 0, duration: 400, onComplete: () => flash.destroy() });
@@ -626,7 +622,7 @@ export default class GameScene extends Phaser.Scene {
       this.explodeAt(enemy.x, enemy.y, large);
       large ? sfx.explosion() : sfx.smallExplosion();
       this.score += ENEMY_DEF[enemy.enemyType].pts;
-      this.scoreTxt.setText(`SCORE ${this.score}`);
+      this.scoreTxt.setText(`${this.score}`);
       enemy.destroy();
     } else {
       enemy.setTint(0xff6666);
@@ -794,9 +790,6 @@ export default class GameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(31);
 
     if (next < 8) {
-      this.add.text(W / 2, H / 2 + 16, `PROCHAIN : ${WORLD_NAMES[next]}`, {
-        fontFamily: 'Arial', fontSize: '8px', color: '#aaddcc',
-      }).setOrigin(0.5).setDepth(31);
       this.time.delayedCall(3200, () => {
         this.scene.start('GameScene', { mode: 'story', world: next, score: this.score, weaponStack: this.weaponStack, cloneCount: this.clones.length });
       });
