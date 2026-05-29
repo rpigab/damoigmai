@@ -100,6 +100,7 @@ export default class GameScene extends Phaser.Scene {
     // Gamepad tracking for game-over screen
     this._goA = false; this._goB = false; this._goStart = false; this._goBack = false;
     this._padSelect = false;
+    this._padLB = false; this._padRB = false;
 
     // HUD
     const hs = { fontFamily: 'Arial', fontSize: '10px', color: '#ffffff' };
@@ -287,6 +288,8 @@ export default class GameScene extends Phaser.Scene {
 
     const yNow      = pad?.buttons[3]?.pressed ?? false;
     const selectNow = pad?.buttons[8]?.pressed ?? false;
+    const lbNow     = pad?.buttons[4]?.pressed ?? false;
+    const rbNow     = pad?.buttons[5]?.pressed ?? false;
     if (Phaser.Input.Keyboard.JustDown(this.keys.Q) || (yNow && !this.padCloneBtn)) {
       this.tryInvokeClone();
     }
@@ -294,8 +297,12 @@ export default class GameScene extends Phaser.Scene {
       if (this.scale.isFullscreen) this.scale.stopFullscreen();
       else this.scale.startFullscreen();
     }
+    if (lbNow && !this._padLB) this.trySacrificeClones('life');
+    if (rbNow && !this._padRB) this.trySacrificeClones('bomb');
     this.padCloneBtn  = yNow;
     this._padSelect   = selectNow;
+    this._padLB       = lbNow;
+    this._padRB       = rbNow;
   }
 
   handleFire(delta) {
@@ -357,6 +364,36 @@ export default class GameScene extends Phaser.Scene {
     this.updateWeaponHUD();
     this.addClone(this.clones.length + 1);
     sfx.summon();
+  }
+
+  trySacrificeClones(action) {
+    if (this.clones.length < 2) return;
+    const positions = this.clones.map(c => ({ x: c.sprite.x, y: c.sprite.y }));
+    this.clones.forEach(c => { this.explodeAt(c.sprite.x, c.sprite.y, false); c.sprite.destroy(); });
+    this.clones = [];
+    if (action === 'life') {
+      this.lives = Math.min(this.lives + 1, 9);
+      this.livesTxt.setText(('♥ ').repeat(this.lives).trim());
+      sfx.pickup();
+      const popup = this.add.text(this.player.x, this.player.y - 20, '+VIE', {
+        fontFamily: 'Arial', fontSize: '10px', color: '#ff88aa',
+      }).setOrigin(0.5).setDepth(25);
+      this.tweens.add({ targets: popup, y: popup.y - 25, alpha: 0, duration: 900, onComplete: () => popup.destroy() });
+    } else {
+      this.enemies.getChildren().slice().forEach(e => {
+        if (!e.active) return;
+        this.trackGroupKill(e);
+        this.explodeAt(e.x, e.y, e.enemyType >= 2);
+        e.enemyType >= 2 ? sfx.explosion() : sfx.smallExplosion();
+        this.score += ENEMY_DEF[e.enemyType].pts;
+        e.destroy();
+      });
+      this.scoreTxt.setText(`SCORE ${this.score}`);
+      // flash screen
+      const flash = this.add.rectangle(W / 2, H / 2, W, H, 0xffffff, 0.7).setDepth(50);
+      this.tweens.add({ targets: flash, alpha: 0, duration: 400, onComplete: () => flash.destroy() });
+      sfx.explosion();
+    }
   }
 
   addClone(index) {
