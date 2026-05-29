@@ -4,7 +4,7 @@ import { WORLD_NAMES, createWorldBackground } from '../backgrounds.js';
 
 const W = 480, H = 270;
 const PLAYER_SPEED   = 180;
-const WAVES_PER_WORLD = 3;
+const WAVES_PER_WORLD = 6;
 
 const ENEMY_DEF = {
   1: { hp: 1, speed: 160, pts: 100, shootMs: 3500 },
