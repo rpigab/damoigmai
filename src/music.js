@@ -33,12 +33,30 @@ function pattern(str) {
 // ---- world themes ---------------------------------------------------------
 // 16 sixteenth-note steps per bar. Voices loop independently.
 const THEMES = [
-  // 0 ESPACE — slow, mysterious minor (A minor), sparse
+  // 0 ESPACE — slow, mysterious (A minor). Three voices with coprime loop lengths
+  // (32 / 48 / 64 steps → LCM 192 = ~38 s at 76 BPM) so the exact repeat is
+  // inaudible while the loop plays.
   {
-    bpm: 88,
+    bpm: 76,
     voices: [
-      { type: 'triangle', vol: 0.12, pat: pattern('A3 - - - E3 - - - A3 - - - C4 - - -') },
-      { type: 'square',   vol: 0.07, duty: 0.5, pat: pattern('A4 . E4 . C5 - B4 - A4 . . E4 . . . .') },
+      // bass drone — 32 steps (2 bars)
+      { type: 'triangle', vol: 0.13, pat: pattern(
+        'A2 - - - - - - - E2 - - - G2 - - - ' +
+        'A2 - - - - - - - C3 - - - B2 - E2 -'
+      )},
+      // pad harmony — 48 steps (3 bars)
+      { type: 'triangle', vol: 0.08, pat: pattern(
+        'A3 - - - - - - - E3 - - - A3 - - - ' +
+        'C4 - - - B3 - - - A3 - - - G3 - - - ' +
+        'E3 - - - D3 - - - E3 - - - G3 - - -'
+      )},
+      // lead melody — 64 steps (4 bars)
+      { type: 'square', vol: 0.055, pat: pattern(
+        '. . . . A4 - - . . . E4 . C5 - B4 . ' +
+        'A4 . . . . . . . G4 . A4 . B4 - A4 . ' +
+        '. . C5 - D5 - C5 . B4 . A4 . . E4 . . ' +
+        'G4 . A4 . B4 - A4 . . . A4 . G4 . E4 .'
+      )},
     ],
   },
   // 1 DÉSERT — Phrygian-ish, mid tempo, exotic
@@ -89,12 +107,27 @@ const THEMES = [
       { type: 'square',   vol: 0.06, duty: 0.5, pat: pattern('A4 C5 E5 A5 E5 C5 A4 C5 G4 B4 E5 G5 F4 A4 C5 E5') },
     ],
   },
-  // 7 ABSTRAIT — whole-tone, dreamy & dissonant
+  // 7 ABSTRAIT — whole-tone scale (C D E F# G# A#), dreamy & dissonant.
+  // Three voices: 24 / 32 / 40 steps → LCM 480 = ~80 s at 90 BPM.
   {
-    bpm: 100,
+    bpm: 90,
     voices: [
-      { type: 'triangle', vol: 0.11, pat: pattern('C3 - - - D3 - - - E3 - - - F#3 - - -') },
-      { type: 'square',   vol: 0.06, duty: 0.5, pat: pattern('C5 - D5 - E5 - F#5 - G#5 - F#5 - E5 - D5 -') },
+      // bass — 24 steps: slow ascending whole-tone walk
+      { type: 'triangle', vol: 0.12, pat: pattern(
+        'C3 - - - D3 - - - E3 - - - ' +
+        'F#3 - - - G#3 - - - A#3 - - -'
+      )},
+      // arpeggio — 32 steps: permutations of whole-tone chord tones
+      { type: 'square', vol: 0.06, pat: pattern(
+        'C5 . E5 . G#5 . A#5 . C6 . A#5 . G#5 . E5 . ' +
+        'D5 . F#5 . A#5 . C6 . D6 . C6 . A#5 . F#5 .'
+      )},
+      // lead — 40 steps: sparse phrases over the whole-tone field
+      { type: 'triangle', vol: 0.09, pat: pattern(
+        '. . C5 . . . D5 . . E5 - . . F#5 . . ' +
+        'G#5 - - . A#5 . . . G#5 . F#5 . . . . . ' +
+        '. E5 . D5 . C5 . .'
+      )},
     ],
   },
 ];
@@ -157,6 +190,19 @@ export function startMusic(worldIndex) {
   master.gain.exponentialRampToValueAtTime(0.9, ctx.currentTime + 0.6); // fade in
   master.connect(ctx.destination);
 
+  tick();
+  timer = setInterval(tick, TICK_MS);
+}
+
+export function pauseMusic() {
+  if (timer) { clearInterval(timer); timer = null; }
+  // Keep theme + master alive; just stop scheduling new notes.
+}
+
+export function resumeMusic() {
+  if (!theme || !master || timer) return;
+  const ctx = getAudioContext();
+  nextTime = ctx.currentTime + 0.05; // skip any gap
   tick();
   timer = setInterval(tick, TICK_MS);
 }

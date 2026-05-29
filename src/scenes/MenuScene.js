@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { WORLD_NAMES, createWorldBackground } from '../backgrounds.js';
+import { createWorldBackground } from '../backgrounds.js';
 import { startMusic } from '../music.js';
 
 const W = 480, H = 270;
@@ -19,7 +19,7 @@ export default class MenuScene extends Phaser.Scene {
     // Menu items
     this.selected = 0;
     const ITEMS = [
-      { label: 'HISTOIRE',  sub: `8 mondes : ${WORLD_NAMES.join(' · ')}`,  mode: 'story' },
+      { label: 'HISTOIRE',  sub: '',                                       mode: 'story' },
       { label: 'ENDLESS',   sub: 'vagues infinies · highscores',           mode: 'endless' },
       { label: 'CONTRÔLES', sub: 'manette & clavier',                      mode: 'controls' },
     ];
