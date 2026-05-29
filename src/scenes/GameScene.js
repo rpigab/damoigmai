@@ -205,7 +205,10 @@ export default class GameScene extends Phaser.Scene {
   update(time, delta) {
     this.bgLayers.forEach(l => { l.sprite.tilePositionX += l.speedX; });
 
-    if (this.worldDone) return;
+    if (this.worldDone) {
+      this.player.setVelocity(0, 0);
+      return;
+    }
 
     if (this.dead) {
       this.handleGameOverPad();
