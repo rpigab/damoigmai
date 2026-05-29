@@ -85,7 +85,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.input.gamepad.on('connected', () => {
       const t = this.add.text(W / 2, 40, 'MANETTE CONNECTÉE', {
-        fontFamily: 'monospace', fontSize: '8px', color: '#88ff88',
+        fontFamily: 'Arial', fontSize: '8px', color: '#88ff88',
       }).setOrigin(0.5).setDepth(30);
       this.tweens.add({ targets: t, y: 20, alpha: 0, duration: 2500, onComplete: () => t.destroy() });
     });
@@ -101,13 +101,13 @@ export default class GameScene extends Phaser.Scene {
     this._goA = false; this._goB = false; this._goStart = false; this._goBack = false;
 
     // HUD
-    const hs = { fontFamily: 'monospace', fontSize: '10px', color: '#ffffff' };
+    const hs = { fontFamily: 'Arial', fontSize: '10px', color: '#ffffff' };
     this.scoreTxt = this.add.text(W - 6, 6, `SCORE ${this.score}`, hs).setOrigin(1, 0).setDepth(20);
     this.livesTxt = this.add.text(6, 6, '♥ ♥ ♥', { ...hs, color: '#ff4455' }).setOrigin(0, 0).setDepth(20);
 
     if (this.mode === 'story') {
       this.worldTxt = this.add.text(W / 2, 6, `M${this.worldIndex + 1} ${WORLD_NAMES[this.worldIndex]}`, {
-        fontFamily: 'monospace', fontSize: '8px', color: '#aaddee',
+        fontFamily: 'Arial', fontSize: '8px', color: '#aaddee',
       }).setOrigin(0.5, 0).setDepth(20);
     }
 
@@ -124,10 +124,10 @@ export default class GameScene extends Phaser.Scene {
   showWorldIntro(callback) {
     const bg  = this.add.rectangle(W / 2, H / 2, 300, 72, 0x000000, 0.82).setDepth(30);
     const t1  = this.add.text(W / 2, H / 2 - 16, `MONDE ${this.worldIndex + 1}`, {
-      fontFamily: 'monospace', fontSize: '20px', color: '#00eeff',
+      fontFamily: 'Arial', fontSize: '20px', color: '#00eeff',
     }).setOrigin(0.5).setDepth(31);
     const t2  = this.add.text(W / 2, H / 2 + 8, WORLD_NAMES[this.worldIndex], {
-      fontFamily: 'monospace', fontSize: '11px', color: '#aaddee',
+      fontFamily: 'Arial', fontSize: '11px', color: '#aaddee',
     }).setOrigin(0.5).setDepth(31);
 
     this.time.delayedCall(1800, () => {
@@ -147,12 +147,12 @@ export default class GameScene extends Phaser.Scene {
       const bg   = this.add.rectangle(x0 + 48, ry, 98, 13, 0x000000, 0.4).setOrigin(0.5).setDepth(19);
       const icon = this.add.rectangle(x0 + 4, ry, 8, 8, 0xffffff).setOrigin(0.5).setDepth(20);
       const name = this.add.text(x0 + 12, ry, '', {
-        fontFamily: 'monospace', fontSize: '7px', color: '#ffffff',
+        fontFamily: 'Arial', fontSize: '7px', color: '#ffffff',
       }).setOrigin(0, 0.5).setDepth(20);
       const barBg = this.add.rectangle(x0 + 57, ry, 33, 4, 0x222233).setOrigin(0, 0.5).setDepth(20);
       const bar   = this.add.rectangle(x0 + 57, ry, 33, 4, 0x44cc44).setOrigin(0, 0.5).setDepth(20);
       const inf   = this.add.text(x0 + 57, ry, '∞', {
-        fontFamily: 'monospace', fontSize: '8px', color: '#666666',
+        fontFamily: 'Arial', fontSize: '8px', color: '#666666',
       }).setOrigin(0, 0.5).setDepth(20);
       [bg, icon, name, barBg, bar, inf].forEach(o => o.setVisible(false));
       this.weaponSlots.push({ bg, icon, name, barBg, bar, inf });
@@ -172,7 +172,7 @@ export default class GameScene extends Phaser.Scene {
       slot.bg.setAlpha(isCurrent ? 0.55 : 0.25).setVisible(true);
       slot.icon.setFillStyle(WEAPON_COLORS[w.type]).setAlpha(alpha).setVisible(true);
       slot.name.setText(WEAPON_NAMES[w.type]).setAlpha(alpha)
-               .setStyle({ fontFamily: 'monospace', fontSize: isCurrent ? '8px' : '7px', color: '#ffffff' })
+               .setStyle({ fontFamily: 'Arial', fontSize: isCurrent ? '8px' : '7px', color: '#ffffff' })
                .setVisible(true);
       if (w.ammo === Infinity) {
         slot.barBg.setVisible(false); slot.bar.setVisible(false);
@@ -561,7 +561,7 @@ export default class GameScene extends Phaser.Scene {
     this.updateWeaponHUD();
     sfx.pickup();
     const popup = this.add.text(px, py - 8, type === 'spread' ? '+SPREAD' : '+PLASMA', {
-      fontFamily: 'monospace', fontSize: '9px', color: type === 'spread' ? '#55eeff' : '#ffcc00',
+      fontFamily: 'Arial', fontSize: '9px', color: type === 'spread' ? '#55eeff' : '#ffcc00',
     }).setOrigin(0.5).setDepth(25);
     this.tweens.add({ targets: popup, y: py - 30, alpha: 0, duration: 900, onComplete: () => popup.destroy() });
   }
@@ -625,36 +625,36 @@ export default class GameScene extends Phaser.Scene {
     this.time.delayedCall(800, () => {
       this.add.rectangle(W / 2, H / 2, 280, 130, 0x000000, 0.88).setDepth(30);
       this.add.text(W / 2, H / 2 - 46, 'GAME  OVER', {
-        fontFamily: 'monospace', fontSize: '20px', color: '#ff3344',
+        fontFamily: 'Arial', fontSize: '20px', color: '#ff3344',
       }).setOrigin(0.5).setDepth(31);
 
       if (rank === 0) {
         this.add.text(W / 2, H / 2 - 26, '★ NOUVEAU RECORD ★', {
-          fontFamily: 'monospace', fontSize: '8px', color: '#ffdd00',
+          fontFamily: 'Arial', fontSize: '8px', color: '#ffdd00',
         }).setOrigin(0.5).setDepth(31);
       }
 
       this.add.text(W / 2, H / 2 - 12, `SCORE  ${this.score}`, {
-        fontFamily: 'monospace', fontSize: '12px', color: '#ffffff',
+        fontFamily: 'Arial', fontSize: '12px', color: '#ffffff',
       }).setOrigin(0.5).setDepth(31);
 
       if (this.mode === 'story') {
         this.add.text(W / 2, H / 2 + 4, `MONDE  ${this.worldIndex + 1}  ·  VAGUE  ${this.wave}`, {
-          fontFamily: 'monospace', fontSize: '8px', color: '#aaaaaa',
+          fontFamily: 'Arial', fontSize: '8px', color: '#aaaaaa',
         }).setOrigin(0.5).setDepth(31);
       } else {
         this.add.text(W / 2, H / 2 + 4, `VAGUE  ${this.wave}`, {
-          fontFamily: 'monospace', fontSize: '9px', color: '#aaaaaa',
+          fontFamily: 'Arial', fontSize: '9px', color: '#aaaaaa',
         }).setOrigin(0.5).setDepth(31);
 
         // Highscores
         const scores = loadScores();
         this.add.text(W / 2, H / 2 + 18, '— HIGHSCORES —', {
-          fontFamily: 'monospace', fontSize: '6px', color: '#446688',
+          fontFamily: 'Arial', fontSize: '6px', color: '#446688',
         }).setOrigin(0.5).setDepth(31);
         scores.slice(0, 5).forEach((s, i) => {
           this.add.text(W / 2, H / 2 + 28 + i * 10, `${i + 1}. ${s}`, {
-            fontFamily: 'monospace', fontSize: '7px', color: i === rank ? '#ffdd00' : '#667788',
+            fontFamily: 'Arial', fontSize: '7px', color: i === rank ? '#ffdd00' : '#667788',
           }).setOrigin(0.5).setDepth(31);
         });
       }
@@ -664,7 +664,7 @@ export default class GameScene extends Phaser.Scene {
         : 'R/A : rejouer       M/B : menu';
       const hintY = this.mode === 'endless' ? H / 2 + 78 : H / 2 + 22;
       this.add.text(W / 2, hintY, hint, {
-        fontFamily: 'monospace', fontSize: '6px', color: '#445566',
+        fontFamily: 'Arial', fontSize: '6px', color: '#445566',
       }).setOrigin(0.5).setDepth(31);
 
       this.input.keyboard.once('keydown-R', () => { if (this.gameOverReady) { this.gameOverReady = false; this.doRestart(); } });
@@ -680,15 +680,15 @@ export default class GameScene extends Phaser.Scene {
 
     this.add.rectangle(W / 2, H / 2, 320, 80, 0x000000, 0.88).setDepth(30);
     this.add.text(W / 2, H / 2 - 22, `MONDE ${this.worldIndex + 1} TERMINÉ !`, {
-      fontFamily: 'monospace', fontSize: '16px', color: '#00ff88',
+      fontFamily: 'Arial', fontSize: '16px', color: '#00ff88',
     }).setOrigin(0.5).setDepth(31);
     this.add.text(W / 2, H / 2 - 2, `SCORE  ${this.score}`, {
-      fontFamily: 'monospace', fontSize: '10px', color: '#ffffff',
+      fontFamily: 'Arial', fontSize: '10px', color: '#ffffff',
     }).setOrigin(0.5).setDepth(31);
 
     if (next < 8) {
       this.add.text(W / 2, H / 2 + 16, `PROCHAIN : ${WORLD_NAMES[next]}`, {
-        fontFamily: 'monospace', fontSize: '8px', color: '#aaddcc',
+        fontFamily: 'Arial', fontSize: '8px', color: '#aaddcc',
       }).setOrigin(0.5).setDepth(31);
       this.time.delayedCall(3200, () => {
         this.scene.start('GameScene', { mode: 'story', world: next, score: this.score });
@@ -700,10 +700,10 @@ export default class GameScene extends Phaser.Scene {
 
   triggerVictory() {
     this.add.text(W / 2, H / 2 + 28, '✦ VICTOIRE TOTALE ✦', {
-      fontFamily: 'monospace', fontSize: '10px', color: '#ffcc00',
+      fontFamily: 'Arial', fontSize: '10px', color: '#ffcc00',
     }).setOrigin(0.5).setDepth(31);
     this.add.text(W / 2, H / 2 + 44, 'M / B : menu', {
-      fontFamily: 'monospace', fontSize: '7px', color: '#667788',
+      fontFamily: 'Arial', fontSize: '7px', color: '#667788',
     }).setOrigin(0.5).setDepth(31);
 
     this.input.keyboard.once('keydown-M', () => this.scene.start('MenuScene'));
