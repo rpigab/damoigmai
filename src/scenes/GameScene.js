@@ -119,76 +119,119 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // -------------------------------------------------------------------------
+  // Weapon stack HUD — a horizontal strip anchored to the bottom-right corner.
+  // The 4 topmost weapons (current = rightmost) are shown in detail (bullet
+  // icon + ammo gauge). Deeper weapons are shown as plain colour-coded squares
+  // extending leftward. Beyond 10 squares the oldest are dropped and the
+  // leftmost square becomes "…" to signal the omission.
   createWeaponHUD() {
-    this.weaponSlots = [];
+    const cy = H - 13;
+    const DW = 26;                 // detailed cell pitch
+    const dRight = W - 16;         // centre x of the rightmost (current) cell
+
+    this.detailedSlots = [];
     for (let i = 0; i < 4; i++) {
-      const ry = H - 10 - i * 16;
-      const x0 = W - 104;
-      const bg    = this.add.rectangle(x0 + 48, ry, 98, 13, 0x000000, 0.4).setOrigin(0.5).setDepth(19);
-      const icon  = this.add.rectangle(x0 + 4, ry, 8, 8, 0xffffff).setOrigin(0.5).setDepth(20);
-      // bullet-icon graphic replaces the text name
+      const cx = dRight - i * DW;
+      const bg    = this.add.rectangle(cx, cy, 24, 22, 0x000000, 0.4).setDepth(19);
       const gfx   = this.add.graphics().setDepth(20);
-      const barBg = this.add.rectangle(x0 + 57, ry, 33, 4, 0x222233).setOrigin(0, 0.5).setDepth(20);
-      const bar   = this.add.rectangle(x0 + 57, ry, 33, 4, 0x44cc44).setOrigin(0, 0.5).setDepth(20);
-      const inf   = this.add.text(x0 + 57, ry, '∞', {
-        fontFamily: 'Arial', fontSize: '8px', color: '#666666',
-      }).setOrigin(0, 0.5).setDepth(20);
-      [bg, icon, gfx, barBg, bar, inf].forEach(o => o.setVisible(false));
-      this.weaponSlots.push({ bg, icon, gfx, barBg, bar, inf });
+      const barBg = this.add.rectangle(cx - 9, cy + 7, 18, 3, 0x222233).setOrigin(0, 0.5).setDepth(20);
+      const bar   = this.add.rectangle(cx - 9, cy + 7, 18, 3, 0x44cc44).setOrigin(0, 0.5).setDepth(20);
+      const inf   = this.add.text(cx, cy + 7, '∞', {
+        fontFamily: 'Arial', fontSize: '9px', color: '#888888',
+      }).setOrigin(0.5).setDepth(20);
+      [bg, gfx, barBg, bar, inf].forEach(o => o.setVisible(false));
+      this.detailedSlots.push({ cx, cy, bg, gfx, barBg, bar, inf });
     }
+
+    const SW = 11;                 // square cell pitch
+    const sRight = (dRight - 3 * DW - DW / 2) - 2 - 5; // just left of the 4th cell
+    this.squareSlots = [];
+    for (let j = 0; j < 10; j++) {
+      const cx = sRight - j * SW;
+      const rect = this.add.rectangle(cx, cy, 9, 9, 0xffffff).setDepth(20);
+      const dots = this.add.graphics().setDepth(21);
+      [rect, dots].forEach(o => o.setVisible(false));
+      this.squareSlots.push({ cx, cy, rect, dots });
+    }
+
     this.updateWeaponHUD();
   }
 
+  drawWeaponIcon(gfx, type, cx, cy) {
+    gfx.clear();
+    const col = WEAPON_COLORS[type];
+    gfx.fillStyle(col, 1);
+    if (type === 'gatling') {
+      gfx.fillRect(cx - 1, cy - 3, 3, 6);
+      gfx.fillRect(cx + 2, cy - 1, 2, 2);
+    } else if (type === 'spread') {
+      gfx.fillRect(cx - 3, cy - 1, 5, 2);   // centre
+      gfx.fillRect(cx - 4, cy - 5, 4, 2);   // upper
+      gfx.fillRect(cx - 4, cy + 3, 4, 2);   // lower
+      gfx.fillRect(cx + 2, cy - 1, 2, 1);   // centre tip
+      gfx.fillRect(cx, cy - 5, 2, 1);       // upper tip
+      gfx.fillRect(cx, cy + 3, 2, 1);       // lower tip
+    } else {
+      gfx.fillCircle(cx, cy, 4);
+      gfx.fillStyle(0xffffff, 0.4);
+      gfx.fillCircle(cx - 1, cy - 1, 1);    // highlight
+    }
+  }
+
+  renderDetailed(slot, w, isCurrent) {
+    if (!w) {
+      [slot.bg, slot.gfx, slot.barBg, slot.bar, slot.inf].forEach(o => o.setVisible(false));
+      slot.gfx.clear();
+      return;
+    }
+    const alpha = isCurrent ? 1 : 0.5;
+    slot.bg.setFillStyle(WEAPON_COLORS[w.type], isCurrent ? 0.35 : 0.18).setVisible(true);
+    this.drawWeaponIcon(slot.gfx, w.type, slot.cx, slot.cy - 4);
+    slot.gfx.setAlpha(alpha).setVisible(true);
+    if (w.ammo === Infinity) {
+      slot.barBg.setVisible(false); slot.bar.setVisible(false);
+      slot.inf.setAlpha(alpha).setVisible(true);
+    } else {
+      const ratio = Math.max(0, w.ammo / w.maxAmmo);
+      const bw    = Math.max(1, Math.round(18 * ratio));
+      const col   = ratio > 0.5 ? 0x33cc33 : ratio > 0.25 ? 0xddcc00 : 0xdd2200;
+      slot.barBg.setAlpha(alpha).setVisible(true);
+      slot.bar.setSize(bw, 3).setFillStyle(col).setAlpha(alpha).setVisible(true);
+      slot.inf.setVisible(false);
+    }
+  }
+
   updateWeaponHUD() {
-    const fullStack = [{ type: 'gatling', ammo: Infinity, maxAmmo: Infinity }, ...this.weaponStack];
-    const display   = fullStack.slice().reverse();
-    this.weaponSlots.forEach((slot, i) => {
-      if (i >= display.length) {
-        [slot.bg, slot.icon, slot.gfx, slot.barBg, slot.bar, slot.inf].forEach(o => o.setVisible(false));
-        slot.gfx.clear();
-        return;
-      }
-      const w = display[i], isCurrent = (i === 0), alpha = isCurrent ? 1 : 0.45;
-      slot.bg.setAlpha(isCurrent ? 0.55 : 0.25).setVisible(true);
-      slot.icon.setFillStyle(WEAPON_COLORS[w.type]).setAlpha(alpha).setVisible(true);
+    // stack[0] = gatling base (oldest), stack[last] = current weapon.
+    const stack = [{ type: 'gatling', ammo: Infinity, maxAmmo: Infinity }, ...this.weaponStack];
+    const n = stack.length;
 
-      // Draw bullet-icon for the weapon type
-      slot.gfx.clear().setAlpha(alpha).setVisible(true);
-      const col = WEAPON_COLORS[w.type];
-      // Icon area: x0+12 to x0+52, centred at x0+32, row ry
-      const x0 = W - 104, cx = x0 + 32, ry = slot.bg.y;
-      if (w.type === 'gatling') {
-        // single narrow bullet: body + tip
-        slot.gfx.fillStyle(col, 1);
-        slot.gfx.fillRect(cx - 1, ry - 3, 3, 5);
-        slot.gfx.fillRect(cx,     ry - 5, 1, 2);
-      } else if (w.type === 'spread') {
-        // three bullets: centre, upper-left, lower-left  (fan pointing right)
-        slot.gfx.fillStyle(col, 1);
-        slot.gfx.fillRect(cx + 2, ry - 2, 5, 3);   // centre
-        slot.gfx.fillRect(cx - 3, ry - 6, 4, 2);   // upper
-        slot.gfx.fillRect(cx - 3, ry + 4, 4, 2);   // lower
-        slot.gfx.fillRect(cx + 7, ry - 1, 2, 1);   // centre tip
-        slot.gfx.fillRect(cx + 1, ry - 7, 2, 1);   // upper tip
-        slot.gfx.fillRect(cx + 1, ry + 6, 2, 1);   // lower tip
-      } else {
-        // plasma: filled circle
-        slot.gfx.fillStyle(col, 1);
-        slot.gfx.fillCircle(cx, ry, 4);
-        slot.gfx.fillStyle(0xffffff, 0.4);
-        slot.gfx.fillCircle(cx - 1, ry - 1, 1); // highlight
-      }
+    // Detailed cells: rank 0 (current) at the rightmost cell, older to the left.
+    this.detailedSlots.forEach((slot, i) => {
+      const w = i < n ? stack[n - 1 - i] : null;
+      this.renderDetailed(slot, w, i === 0);
+    });
 
-      if (w.ammo === Infinity) {
-        slot.barBg.setVisible(false); slot.bar.setVisible(false);
-        slot.inf.setAlpha(alpha).setVisible(true);
+    // Squares: everything below the top 4, newest adjacent to the cells.
+    const deeper   = Math.max(0, n - 4);
+    const overflow = deeper > 10;
+    const real     = overflow ? 9 : deeper; // leave room for the "…" marker
+    this.squareSlots.forEach((slot, j) => {
+      if (j < real) {
+        const w = stack[n - 1 - (4 + j)];
+        slot.rect.setFillStyle(WEAPON_COLORS[w.type], 1).setVisible(true);
+        slot.dots.clear().setVisible(false);
+      } else if (overflow && j === 9) {
+        slot.rect.setVisible(false);
+        slot.dots.clear().setVisible(true);
+        slot.dots.fillStyle(0x99aabb, 1);
+        const { cx, cy } = slot;
+        slot.dots.fillRect(cx - 4, cy - 1, 2, 2);
+        slot.dots.fillRect(cx - 1, cy - 1, 2, 2);
+        slot.dots.fillRect(cx + 2, cy - 1, 2, 2);
       } else {
-        const ratio = Math.max(0, w.ammo / w.maxAmmo);
-        const bw    = Math.max(1, Math.round(33 * ratio));
-        const col2  = ratio > 0.5 ? 0x33cc33 : ratio > 0.25 ? 0xddcc00 : 0xdd2200;
-        slot.barBg.setAlpha(alpha).setVisible(true);
-        slot.bar.setSize(bw, 4).setFillStyle(col2).setAlpha(alpha).setVisible(true);
-        slot.inf.setVisible(false);
+        slot.rect.setVisible(false);
+        slot.dots.clear().setVisible(false);
       }
     });
   }
@@ -398,7 +441,7 @@ export default class GameScene extends Phaser.Scene {
   tryInvokeClone() {
     if (this.clones.length >= 2) return;
     if (this.weaponStack.length < 2) {
-      this.tweens.add({ targets: this.weaponSlots[0].bg, fillColor: 0xff0000, duration: 80, yoyo: true });
+      this.tweens.add({ targets: this.detailedSlots[0].bg, fillColor: 0xff0000, duration: 80, yoyo: true });
       return;
     }
     this.weaponStack.splice(this.weaponStack.length - 2, 2);
