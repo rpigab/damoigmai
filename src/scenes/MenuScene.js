@@ -46,10 +46,14 @@ export default class MenuScene extends Phaser.Scene {
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
 
-    this._padUp     = false;
-    this._padDown   = false;
-    this._padA      = false;
-    this._padSelect = false;
+    // Seed edge-trackers from the current pad state so a button still held from
+    // the previous scene (e.g. A confirming "menu principal" in the pause menu)
+    // is not read as a fresh press on this menu's first frame.
+    const pad = this.input.gamepad?.pad1 ?? null;
+    this._padUp     = (pad?.buttons[12]?.pressed ?? false) || (pad?.axes[1]?.getValue() ?? 0) < -0.5;
+    this._padDown   = (pad?.buttons[13]?.pressed ?? false) || (pad?.axes[1]?.getValue() ?? 0) > 0.5;
+    this._padA      = pad?.buttons[0]?.pressed ?? false;
+    this._padSelect = pad?.buttons[8]?.pressed ?? false;
 
     this.refreshMenu();
   }

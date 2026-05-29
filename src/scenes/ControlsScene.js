@@ -26,9 +26,15 @@ export default class ControlsScene extends Phaser.Scene {
       fontFamily: 'Arial', fontSize: '11px', color: '#6688aa',
     }).setOrigin(0.5).setDepth(10);
 
-    // Gamepad edge-tracking
-    this._padL = false; this._padR = false; this._padB = false;
-    this._padA = false; this._padLB = false; this._padRB = false;
+    // Gamepad edge-tracking — seed from current state so the A still held from
+    // the menu (which opened this screen) isn't read as a page flip.
+    const pad = this.input.gamepad?.pad1 ?? null;
+    this._padL  = (pad?.buttons[14]?.pressed ?? false) || (pad?.axes[0]?.getValue() ?? 0) < -0.5;
+    this._padR  = (pad?.buttons[15]?.pressed ?? false) || (pad?.axes[0]?.getValue() ?? 0) > 0.5;
+    this._padB  = pad?.buttons[1]?.pressed ?? false;
+    this._padA  = pad?.buttons[0]?.pressed ?? false;
+    this._padLB = pad?.buttons[4]?.pressed ?? false;
+    this._padRB = pad?.buttons[5]?.pressed ?? false;
 
     this.showPage(0);
   }
