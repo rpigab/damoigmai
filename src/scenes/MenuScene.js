@@ -44,9 +44,10 @@ export default class MenuScene extends Phaser.Scene {
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
 
-    this._padUp   = false;
-    this._padDown = false;
-    this._padA    = false;
+    this._padUp     = false;
+    this._padDown   = false;
+    this._padA      = false;
+    this._padSelect = false;
 
     this.refreshMenu();
   }
@@ -63,10 +64,11 @@ export default class MenuScene extends Phaser.Scene {
   update() {
     this.bgLayers.forEach(l => { l.sprite.tilePositionX += l.speedX; });
 
-    const pad     = this.input.gamepad?.pad1 ?? null;
-    const padUp   = (pad?.buttons[12]?.pressed ?? false) || (pad?.axes[1]?.getValue() ?? 0) < -0.5;
-    const padDown = (pad?.buttons[13]?.pressed ?? false) || (pad?.axes[1]?.getValue() ?? 0) > 0.5;
-    const padA    = pad?.buttons[0]?.pressed ?? false;
+    const pad       = this.input.gamepad?.pad1 ?? null;
+    const padUp     = (pad?.buttons[12]?.pressed ?? false) || (pad?.axes[1]?.getValue() ?? 0) < -0.5;
+    const padDown   = (pad?.buttons[13]?.pressed ?? false) || (pad?.axes[1]?.getValue() ?? 0) > 0.5;
+    const padA      = pad?.buttons[0]?.pressed ?? false;
+    const padSelect = pad?.buttons[8]?.pressed ?? false;
 
     const upJust    = Phaser.Input.Keyboard.JustDown(this.cursors.up)   || (padUp && !this._padUp);
     const downJust  = Phaser.Input.Keyboard.JustDown(this.cursors.down) || (padDown && !this._padDown);
@@ -74,9 +76,15 @@ export default class MenuScene extends Phaser.Scene {
                    || Phaser.Input.Keyboard.JustDown(this.enterKey)
                    || (padA && !this._padA);
 
-    this._padUp   = padUp;
-    this._padDown = padDown;
-    this._padA    = padA;
+    if (padSelect && !this._padSelect) {
+      if (this.scale.isFullscreen) this.scale.stopFullscreen();
+      else this.scale.startFullscreen();
+    }
+
+    this._padUp     = padUp;
+    this._padDown   = padDown;
+    this._padA      = padA;
+    this._padSelect = padSelect;
 
     const n = this.menuItems.length;
     if (upJust)   { this.selected = (this.selected - 1 + n) % n; this.refreshMenu(); }

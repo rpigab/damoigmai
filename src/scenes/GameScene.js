@@ -99,6 +99,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Gamepad tracking for game-over screen
     this._goA = false; this._goB = false; this._goStart = false; this._goBack = false;
+    this._padSelect = false;
 
     // HUD
     const hs = { fontFamily: 'Arial', fontSize: '10px', color: '#ffffff' };
@@ -284,11 +285,17 @@ export default class GameScene extends Phaser.Scene {
     this.player.x = Phaser.Math.Clamp(this.player.x, 20, W - 20);
     this.player.y = Phaser.Math.Clamp(this.player.y, 16, H - 16);
 
-    const yNow = pad?.buttons[3]?.pressed ?? false;
+    const yNow      = pad?.buttons[3]?.pressed ?? false;
+    const selectNow = pad?.buttons[8]?.pressed ?? false;
     if (Phaser.Input.Keyboard.JustDown(this.keys.Q) || (yNow && !this.padCloneBtn)) {
       this.tryInvokeClone();
     }
-    this.padCloneBtn = yNow;
+    if (selectNow && !this._padSelect) {
+      if (this.scale.isFullscreen) this.scale.stopFullscreen();
+      else this.scale.startFullscreen();
+    }
+    this.padCloneBtn  = yNow;
+    this._padSelect   = selectNow;
   }
 
   handleFire(delta) {
