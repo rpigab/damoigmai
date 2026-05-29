@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { sfx } from '../audio.js';
+import { startMusic, stopMusic } from '../music.js';
+import { installKeyboard, isDown, justDown } from '../input.js';
 import { WORLD_NAMES, createWorldBackground } from '../backgrounds.js';
 
 const W = 480, H = 270;
@@ -47,6 +49,9 @@ export default class GameScene extends Phaser.Scene {
     this.worldIndex = data.world ?? 0;
     this.score      = data.score ?? 0;
 
+    installKeyboard();
+    startMusic(this.worldIndex);
+
     // Background parallax layers
     this.bgLayers = createWorldBackground(this, this.worldIndex);
 
@@ -62,9 +67,6 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.enemyBullets, this.player,   this.onBulletHitPlayer, null, this);
     this.physics.add.overlap(this.enemies,      this.player,   this.onEnemyHitPlayer,  null, this);
     this.physics.add.overlap(this.player,       this.powerups, this.onPickupPowerup,   null, this);
-
-    this.cursors  = this.input.keyboard.createCursorKeys();
-    this.keys     = this.input.keyboard.addKeys('W,A,S,D,Z,R,Q,M,I,J,K,L');
 
     this.score       = data.score ?? 0;
     this.lives       = 3;
@@ -104,6 +106,8 @@ export default class GameScene extends Phaser.Scene {
     this._goA = false; this._goB = false; this._goStart = false; this._goBack = false;
     this._padSelect = false;
     this._padLB = false; this._padRB = false;
+    this._padStart = false;
+    this.victoryReady = false;
 
     // HUD
     const hs = { fontFamily: 'Arial', fontSize: '10px', color: '#ffffff' };
@@ -212,6 +216,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.worldDone) {
       this.player.setVelocity(0, 0);
+      if (this.victoryReady) this.handleVictoryInput();
       return;
     }
 
@@ -219,6 +224,8 @@ export default class GameScene extends Phaser.Scene {
       this.handleGameOverPad();
       return;
     }
+
+    if (this.checkPause()) return;
 
     this.handleMovement();
     this.updateClones(delta);
@@ -237,8 +244,28 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  // Start (gamepad) or Échap (keyboard) opens the pause overlay.
+  checkPause() {
+    const pad = this.input.gamepad?.pad1 ?? null;
+    const padStart = pad?.buttons[9]?.pressed ?? false;
+    const open = justDown('Escape') || (padStart && !this._padStart);
+    this._padStart = padStart;
+    if (open) {
+      this.player.setVelocity(0, 0);
+      this.scene.pause();
+      this.scene.launch('PauseScene', { world: this.worldIndex });
+      return true;
+    }
+    return false;
+  }
+
   handleGameOverPad() {
     if (!this.gameOverReady) return;
+
+    // Keyboard: Espace / Entrée rejouent, Échap retourne au menu.
+    if (justDown('Space') || justDown('Enter')) { this.gameOverReady = false; this.doRestart(); return; }
+    if (justDown('Escape'))                      { this.gameOverReady = false; this.scene.start('MenuScene'); return; }
+
     const pad = this.input.gamepad?.pad1 ?? null;
     if (!pad) return;
 
@@ -258,6 +285,18 @@ export default class GameScene extends Phaser.Scene {
     this._goA = aBtn; this._goB = bBtn; this._goStart = start; this._goBack = back;
   }
 
+  handleVictoryInput() {
+    const pad = this.input.gamepad?.pad1 ?? null;
+    const bBtn  = pad?.buttons[1]?.pressed ?? false;
+    const back  = pad?.buttons[8]?.pressed ?? false;
+    if (justDown('Escape') || justDown('Enter') || (bBtn && !this._goB) || (back && !this._goBack)) {
+      this.victoryReady = false;
+      stopMusic();
+      this.scene.start('MenuScene');
+    }
+    this._goB = bBtn; this._goBack = back;
+  }
+
   doRestart() {
     if (this.mode === 'story') {
       this.scene.start('GameScene', { mode: 'story', world: 0, score: 0 });
@@ -275,10 +314,12 @@ export default class GameScene extends Phaser.Scene {
     const gx   = Math.abs(ax) > DEAD ? ax : 0;
     const gy   = Math.abs(ay) > DEAD ? ay : 0;
 
-    const left  = this.cursors.left.isDown  || this.keys.A.isDown || (pad?.buttons[14]?.pressed ?? false) || gx < 0;
-    const right = this.cursors.right.isDown || this.keys.D.isDown || (pad?.buttons[15]?.pressed ?? false) || gx > 0;
-    const up    = this.cursors.up.isDown    || this.keys.W.isDown || (pad?.buttons[12]?.pressed ?? false) || gy < 0;
-    const down  = this.cursors.down.isDown  || this.keys.S.isDown || (pad?.buttons[13]?.pressed ?? false) || gy > 0;
+    // Movement is bound to physical key positions (KeyW/A/S/D) so AZERTY ZQSD
+    // and QWERTY WASD are the same physical keys. Arrows work everywhere.
+    const left  = isDown('KeyA', 'ArrowLeft')  || (pad?.buttons[14]?.pressed ?? false) || gx < 0;
+    const right = isDown('KeyD', 'ArrowRight') || (pad?.buttons[15]?.pressed ?? false) || gx > 0;
+    const up    = isDown('KeyW', 'ArrowUp')    || (pad?.buttons[12]?.pressed ?? false) || gy < 0;
+    const down  = isDown('KeyS', 'ArrowDown')  || (pad?.buttons[13]?.pressed ?? false) || gy > 0;
 
     let vx = left ? -PLAYER_SPEED : right ? PLAYER_SPEED : 0;
     let vy = up   ? -PLAYER_SPEED : down  ? PLAYER_SPEED : 0;
@@ -293,7 +334,7 @@ export default class GameScene extends Phaser.Scene {
     const selectNow = pad?.buttons[8]?.pressed ?? false;
     const lbNow     = pad?.buttons[4]?.pressed ?? false;
     const rbNow     = pad?.buttons[5]?.pressed ?? false;
-    if (Phaser.Input.Keyboard.JustDown(this.keys.Q) || (yNow && !this.padCloneBtn)) {
+    if (justDown('KeyQ') || (yNow && !this.padCloneBtn)) {
       this.tryInvokeClone();
     }
     if (selectNow && !this._padSelect) {
@@ -311,8 +352,9 @@ export default class GameScene extends Phaser.Scene {
   handleFire(delta) {
     this.fireCD -= delta;
     const pad     = this.input.gamepad?.pad1 ?? null;
-    const padFire = (pad?.buttons[7]?.value ?? 0) > 0.1 || (pad?.buttons[0]?.pressed ?? false);
-    const firing  = this.cursors.space.isDown || this.keys.Z.isDown || padFire;
+    // Only RT (right trigger) fires on gamepad — the A button no longer shoots.
+    const padFire = (pad?.buttons[7]?.value ?? 0) > 0.1;
+    const firing  = isDown('Space') || padFire;
     if (firing && this.fireCD <= 0) {
       this.fire();
       this.fireCD = FIRE_CONFIG[this.getCurrentWeaponType()].cooldown;
@@ -434,8 +476,8 @@ export default class GameScene extends Phaser.Scene {
     const sx = Math.abs(rx) > DEAD ? rx : 0;
     const sy = Math.abs(ry) > DEAD ? ry : 0;
 
-    const kx = (this.keys.J.isDown ? -1 : 0) + (this.keys.L.isDown ? 1 : 0);
-    const ky = (this.keys.I.isDown ? -1 : 0) + (this.keys.K.isDown ? 1 : 0);
+    const kx = (isDown('KeyJ') ? -1 : 0) + (isDown('KeyL') ? 1 : 0);
+    const ky = (isDown('KeyI') ? -1 : 0) + (isDown('KeyK') ? 1 : 0);
 
     a.offsetX += (sx + kx) * step;
     a.offsetY += (sy + ky) * step;
@@ -681,6 +723,7 @@ export default class GameScene extends Phaser.Scene {
   // -------------------------------------------------------------------------
   triggerGameOver() {
     this.dead = true;
+    stopMusic();
     sfx.playerDie();
     this.explodeAt(this.player.x, this.player.y, true);
     this.player.setVisible(false);
@@ -727,16 +770,12 @@ export default class GameScene extends Phaser.Scene {
         });
       }
 
-      const hint = this.mode === 'story'
-        ? 'R/A : recommencer    M/B : menu'
-        : 'R/A : rejouer       M/B : menu';
+      const hint = 'ESPACE / A : rejouer      ÉCHAP / B : menu';
       const hintY = this.mode === 'endless' ? H / 2 + 78 : H / 2 + 22;
       this.add.text(W / 2, hintY, hint, {
-        fontFamily: 'Arial', fontSize: '6px', color: '#445566',
+        fontFamily: 'Arial', fontSize: '9px', color: '#5a6e82',
       }).setOrigin(0.5).setDepth(31);
 
-      this.input.keyboard.once('keydown-R', () => { if (this.gameOverReady) { this.gameOverReady = false; this.doRestart(); } });
-      this.input.keyboard.once('keydown-M', () => { if (this.gameOverReady) { this.gameOverReady = false; this.scene.start('MenuScene'); } });
       this.gameOverReady = true;
     });
   }
@@ -770,11 +809,10 @@ export default class GameScene extends Phaser.Scene {
     this.add.text(W / 2, H / 2 + 28, '✦ VICTOIRE TOTALE ✦', {
       fontFamily: 'Arial', fontSize: '10px', color: '#ffcc00',
     }).setOrigin(0.5).setDepth(31);
-    this.add.text(W / 2, H / 2 + 44, 'M / B : menu', {
-      fontFamily: 'Arial', fontSize: '7px', color: '#667788',
+    this.add.text(W / 2, H / 2 + 44, 'ÉCHAP / B : menu', {
+      fontFamily: 'Arial', fontSize: '9px', color: '#667788',
     }).setOrigin(0.5).setDepth(31);
 
-    this.input.keyboard.once('keydown-M', () => this.scene.start('MenuScene'));
-    this._victoryPad = true;
+    this.victoryReady = true;
   }
 }

@@ -2,11 +2,15 @@
 
 let ctx = null;
 
-function getCtx() {
+// Shared AudioContext, used by both the SFX here and the music engine
+// (music.js) so everything mixes through the same graph.
+export function getAudioContext() {
   if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
   if (ctx.state === 'suspended') ctx.resume();
   return ctx;
 }
+
+const getCtx = getAudioContext;
 
 function tone(freq, endFreq, duration, type = 'square', vol = 0.25) {
   const c = getCtx();
