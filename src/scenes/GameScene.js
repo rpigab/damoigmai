@@ -78,7 +78,7 @@ export default class GameScene extends Phaser.Scene {
     this.waveCanEnd  = false;
     this.wave        = this.worldIndex * WAVES_PER_WORLD; // base for this world
 
-    this.weaponStack = [];
+    this.weaponStack = data.weaponStack ?? [];
     this.clones      = [];
     this.cloneGroup  = this.physics.add.group();
     this.padCloneBtn = false;
@@ -691,7 +691,7 @@ export default class GameScene extends Phaser.Scene {
         fontFamily: 'Arial', fontSize: '8px', color: '#aaddcc',
       }).setOrigin(0.5).setDepth(31);
       this.time.delayedCall(3200, () => {
-        this.scene.start('GameScene', { mode: 'story', world: next, score: this.score });
+        this.scene.start('GameScene', { mode: 'story', world: next, score: this.score, weaponStack: this.weaponStack });
       });
     } else {
       this.triggerVictory();
