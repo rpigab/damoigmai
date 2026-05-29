@@ -119,18 +119,16 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // -------------------------------------------------------------------------
-  // Weapon stack HUD — a horizontal strip anchored to the bottom-right corner.
-  // The 4 topmost weapons (current = rightmost) are shown in detail (bullet
-  // icon + ammo gauge). Deeper weapons are shown as plain colour-coded squares
-  // extending leftward. Beyond 10 squares the oldest are dropped and the
-  // leftmost square becomes "…" to signal the omission.
+  // Weapon stack HUD — horizontal strip, bottom-right. Up to 10 detailed cells
+  // (bullet icon + ammo bar). Current weapon = rightmost. If the stack exceeds
+  // 10 entries the leftmost cell becomes "…" instead of a weapon.
   createWeaponHUD() {
     const cy = H - 13;
-    const DW = 26;                 // detailed cell pitch
-    const dRight = W - 16;         // centre x of the rightmost (current) cell
+    const DW = 26;           // cell pitch
+    const dRight = W - 16;  // rightmost cell centre x
 
     this.detailedSlots = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 10; i++) {
       const cx = dRight - i * DW;
       const bg    = this.add.rectangle(cx, cy, 24, 22, 0x000000, 0.4).setDepth(19);
       const gfx   = this.add.graphics().setDepth(20);
@@ -141,17 +139,6 @@ export default class GameScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(20);
       [bg, gfx, barBg, bar, inf].forEach(o => o.setVisible(false));
       this.detailedSlots.push({ cx, cy, bg, gfx, barBg, bar, inf });
-    }
-
-    const SW = 11;                 // square cell pitch
-    const sRight = (dRight - 3 * DW - DW / 2) - 2 - 5; // just left of the 4th cell
-    this.squareSlots = [];
-    for (let j = 0; j < 10; j++) {
-      const cx = sRight - j * SW;
-      const rect = this.add.rectangle(cx, cy, 9, 9, 0xffffff).setDepth(20);
-      const dots = this.add.graphics().setDepth(21);
-      [rect, dots].forEach(o => o.setVisible(false));
-      this.squareSlots.push({ cx, cy, rect, dots });
     }
 
     this.updateWeaponHUD();
@@ -165,73 +152,68 @@ export default class GameScene extends Phaser.Scene {
       gfx.fillRect(cx - 1, cy - 3, 3, 6);
       gfx.fillRect(cx + 2, cy - 1, 2, 2);
     } else if (type === 'spread') {
-      gfx.fillRect(cx - 3, cy - 1, 5, 2);   // centre
-      gfx.fillRect(cx - 4, cy - 5, 4, 2);   // upper
-      gfx.fillRect(cx - 4, cy + 3, 4, 2);   // lower
-      gfx.fillRect(cx + 2, cy - 1, 2, 1);   // centre tip
-      gfx.fillRect(cx, cy - 5, 2, 1);       // upper tip
-      gfx.fillRect(cx, cy + 3, 2, 1);       // lower tip
+      gfx.fillRect(cx - 3, cy - 1, 5, 2);
+      gfx.fillRect(cx - 4, cy - 5, 4, 2);
+      gfx.fillRect(cx - 4, cy + 3, 4, 2);
+      gfx.fillRect(cx + 2, cy - 1, 2, 1);
+      gfx.fillRect(cx,     cy - 5, 2, 1);
+      gfx.fillRect(cx,     cy + 3, 2, 1);
     } else {
       gfx.fillCircle(cx, cy, 4);
       gfx.fillStyle(0xffffff, 0.4);
-      gfx.fillCircle(cx - 1, cy - 1, 1);    // highlight
-    }
-  }
-
-  renderDetailed(slot, w, isCurrent) {
-    if (!w) {
-      [slot.bg, slot.gfx, slot.barBg, slot.bar, slot.inf].forEach(o => o.setVisible(false));
-      slot.gfx.clear();
-      return;
-    }
-    const alpha = isCurrent ? 1 : 0.5;
-    slot.bg.setFillStyle(WEAPON_COLORS[w.type], isCurrent ? 0.35 : 0.18).setVisible(true);
-    this.drawWeaponIcon(slot.gfx, w.type, slot.cx, slot.cy - 4);
-    slot.gfx.setAlpha(alpha).setVisible(true);
-    if (w.ammo === Infinity) {
-      slot.barBg.setVisible(false); slot.bar.setVisible(false);
-      slot.inf.setAlpha(alpha).setVisible(true);
-    } else {
-      const ratio = Math.max(0, w.ammo / w.maxAmmo);
-      const bw    = Math.max(1, Math.round(18 * ratio));
-      const col   = ratio > 0.5 ? 0x33cc33 : ratio > 0.25 ? 0xddcc00 : 0xdd2200;
-      slot.barBg.setAlpha(alpha).setVisible(true);
-      slot.bar.setSize(bw, 3).setFillStyle(col).setAlpha(alpha).setVisible(true);
-      slot.inf.setVisible(false);
+      gfx.fillCircle(cx - 1, cy - 1, 1);
     }
   }
 
   updateWeaponHUD() {
-    // stack[0] = gatling base (oldest), stack[last] = current weapon.
+    // stack[0] = gatling base (oldest/bottom), stack[last] = current weapon.
     const stack = [{ type: 'gatling', ammo: Infinity, maxAmmo: Infinity }, ...this.weaponStack];
     const n = stack.length;
+    const overflow = n > 10; // more items than slots
 
-    // Detailed cells: rank 0 (current) at the rightmost cell, older to the left.
     this.detailedSlots.forEach((slot, i) => {
-      const w = i < n ? stack[n - 1 - i] : null;
-      this.renderDetailed(slot, w, i === 0);
-    });
+      // i=0 → current (rightmost), i=9 → oldest visible (leftmost)
+      const isDots = overflow && i === 9;
 
-    // Squares: everything below the top 4, newest adjacent to the cells.
-    const deeper   = Math.max(0, n - 4);
-    const overflow = deeper > 10;
-    const real     = overflow ? 9 : deeper; // leave room for the "…" marker
-    this.squareSlots.forEach((slot, j) => {
-      if (j < real) {
-        const w = stack[n - 1 - (4 + j)];
-        slot.rect.setFillStyle(WEAPON_COLORS[w.type], 1).setVisible(true);
-        slot.dots.clear().setVisible(false);
-      } else if (overflow && j === 9) {
-        slot.rect.setVisible(false);
-        slot.dots.clear().setVisible(true);
-        slot.dots.fillStyle(0x99aabb, 1);
+      if (isDots) {
+        // "…" marker: hide weapon chrome, draw three dots with gfx
+        [slot.bg, slot.barBg, slot.bar, slot.inf].forEach(o => o.setVisible(false));
+        slot.gfx.clear().setAlpha(1).setVisible(true);
+        slot.gfx.fillStyle(0x99aabb, 1);
         const { cx, cy } = slot;
-        slot.dots.fillRect(cx - 4, cy - 1, 2, 2);
-        slot.dots.fillRect(cx - 1, cy - 1, 2, 2);
-        slot.dots.fillRect(cx + 2, cy - 1, 2, 2);
+        slot.gfx.fillRect(cx - 5, cy - 4, 3, 3);
+        slot.gfx.fillRect(cx - 1, cy - 4, 3, 3);
+        slot.gfx.fillRect(cx + 3, cy - 4, 3, 3);
+        return;
+      }
+
+      // Which stack entry maps to this slot?
+      // When overflow: slots 0–8 show stack[n-1] down to stack[n-9];
+      // the 9th slot (i=9) is the "…" handled above.
+      const w = i < n ? stack[n - 1 - i] : null;
+
+      if (!w) {
+        [slot.bg, slot.gfx, slot.barBg, slot.bar, slot.inf].forEach(o => o.setVisible(false));
+        slot.gfx.clear();
+        return;
+      }
+
+      const isCurrent = i === 0;
+      const alpha = isCurrent ? 1 : 0.5;
+      slot.bg.setFillStyle(WEAPON_COLORS[w.type], isCurrent ? 0.35 : 0.18).setVisible(true);
+      this.drawWeaponIcon(slot.gfx, w.type, slot.cx, slot.cy - 4);
+      slot.gfx.setAlpha(alpha).setVisible(true);
+
+      if (w.ammo === Infinity) {
+        slot.barBg.setVisible(false); slot.bar.setVisible(false);
+        slot.inf.setAlpha(alpha).setVisible(true);
       } else {
-        slot.rect.setVisible(false);
-        slot.dots.clear().setVisible(false);
+        const ratio = Math.max(0, w.ammo / w.maxAmmo);
+        const bw    = Math.max(1, Math.round(18 * ratio));
+        const col   = ratio > 0.5 ? 0x33cc33 : ratio > 0.25 ? 0xddcc00 : 0xdd2200;
+        slot.barBg.setAlpha(alpha).setVisible(true);
+        slot.bar.setSize(bw, 3).setFillStyle(col).setAlpha(alpha).setVisible(true);
+        slot.inf.setVisible(false);
       }
     });
   }
