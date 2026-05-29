@@ -92,6 +92,10 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.enemyBullets, this.cloneGroup, this.onEnemyBulletHitClone, null, this);
     this.physics.add.overlap(this.cloneGroup,   this.powerups,   this.onPickupPowerup,        null, this);
 
+    // Conserve les clones entre les mondes (mode histoire).
+    const carriedClones = Math.min(data.cloneCount ?? 0, 2);
+    for (let i = 1; i <= carriedClones; i++) this.addClone(i);
+
     this.nextGroupId  = 1;
     this.enemyGroups  = {};
     this.powerupCycle = 0;
@@ -755,7 +759,7 @@ export default class GameScene extends Phaser.Scene {
         fontFamily: 'Arial', fontSize: '8px', color: '#aaddcc',
       }).setOrigin(0.5).setDepth(31);
       this.time.delayedCall(3200, () => {
-        this.scene.start('GameScene', { mode: 'story', world: next, score: this.score, weaponStack: this.weaponStack });
+        this.scene.start('GameScene', { mode: 'story', world: next, score: this.score, weaponStack: this.weaponStack, cloneCount: this.clones.length });
       });
     } else {
       this.triggerVictory();
