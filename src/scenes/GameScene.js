@@ -63,9 +63,8 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.enemies,      this.player,   this.onEnemyHitPlayer,  null, this);
     this.physics.add.overlap(this.player,       this.powerups, this.onPickupPowerup,   null, this);
 
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.keys    = this.input.keyboard.addKeys('W,A,S,D,Z,R,Q,M');
-    this.ctrlKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL);
+    this.cursors  = this.input.keyboard.createCursorKeys();
+    this.keys     = this.input.keyboard.addKeys('W,A,S,D,Z,R,Q,M,I,J,K,L');
 
     this.score       = data.score ?? 0;
     this.lives       = 3;
@@ -78,10 +77,10 @@ export default class GameScene extends Phaser.Scene {
     this.waveCanEnd  = false;
     this.wave        = this.worldIndex * WAVES_PER_WORLD; // base for this world
 
-    this.weaponStack = data.weaponStack ?? [];
-    this.clones      = [];
-    this.cloneGroup  = this.physics.add.group();
-    this.padCloneBtn = false;
+    this.weaponStack   = data.weaponStack ?? [];
+    this.clones        = [];
+    this.cloneGroup    = this.physics.add.group();
+    this.padCloneBtn   = false;
 
     this.input.gamepad.on('connected', () => {
       const t = this.add.text(W / 2, 40, 'MANETTE CONNECTÉE', {
@@ -218,7 +217,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     this.handleMovement();
-    this.updateClones();
+    this.updateClones(delta);
     this.handleFire(delta);
     this.updateEnemies(time, delta);
     this.tickInvincibility(delta);
@@ -415,16 +414,37 @@ export default class GameScene extends Phaser.Scene {
     return { x: bx * cos60 - by * sin60, y: bx * sin60 + by * cos60 };
   }
 
-  updateClones() {
+  updateClones(delta) {
     if (this.clones.length === 0) return;
-    const pad      = this.input.gamepad?.pad1 ?? null;
-    const decoupled = this.ctrlKey.isDown || (pad?.buttons[6]?.value ?? 0) > 0.1;
-    const b = this.clones[0];
-    if (decoupled) { b.offsetX = b.sprite.x - this.player.x; b.offsetY = b.sprite.y - this.player.y; }
-    else { b.sprite.x = this.player.x + b.offsetX; b.sprite.y = this.player.y + b.offsetY; }
+    const pad  = this.input.gamepad?.pad1 ?? null;
+    const DEAD = 0.15;
+    const step = PLAYER_SPEED * (delta / 1000);
+
+    // --- Premier clone : suit le vaisseau (stick gauche), et le stick droit / IJKL
+    // ajoute son propre vecteur par-dessus. Les deux mouvements se somment :
+    // si on lâche le stick droit, le clone continue de suivre le vaisseau sans rien retoggler.
+    const a = this.clones[0];
+
+    const rx = pad ? (pad.axes[2]?.getValue() ?? 0) : 0;
+    const ry = pad ? (pad.axes[3]?.getValue() ?? 0) : 0;
+    const sx = Math.abs(rx) > DEAD ? rx : 0;
+    const sy = Math.abs(ry) > DEAD ? ry : 0;
+
+    const kx = (this.keys.J.isDown ? -1 : 0) + (this.keys.L.isDown ? 1 : 0);
+    const ky = (this.keys.I.isDown ? -1 : 0) + (this.keys.K.isDown ? 1 : 0);
+
+    a.offsetX += (sx + kx) * step;
+    a.offsetY += (sy + ky) * step;
+    a.sprite.x = Phaser.Math.Clamp(this.player.x + a.offsetX, 20, W - 20);
+    a.sprite.y = Phaser.Math.Clamp(this.player.y + a.offsetY, 16, H - 16);
+    // Re-synchronise l'offset si le clamp a tronqué la position (évite la dérive au bord).
+    a.offsetX = a.sprite.x - this.player.x;
+    a.offsetY = a.sprite.y - this.player.y;
+
+    // --- Dernier clone : non contrôlable, complète le triangle équilatéral.
     if (this.clones.length >= 2) {
       const c = this.clones[1];
-      const bx = b.sprite.x - this.player.x, by = b.sprite.y - this.player.y;
+      const bx = a.sprite.x - this.player.x, by = a.sprite.y - this.player.y;
       const cos60 = 0.5, sin60 = Math.sqrt(3) / 2;
       c.offsetX = bx * cos60 - by * sin60; c.offsetY = bx * sin60 + by * cos60;
       c.sprite.x = this.player.x + c.offsetX; c.sprite.y = this.player.y + c.offsetY;
