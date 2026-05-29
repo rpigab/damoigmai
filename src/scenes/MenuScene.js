@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { WORLD_NAMES, createWorldBackground } from '../backgrounds.js';
+import { startMusic } from '../music.js';
 
 const W = 480, H = 270;
 
@@ -8,36 +9,37 @@ export default class MenuScene extends Phaser.Scene {
 
   create() {
     this.bgLayers = createWorldBackground(this, 0); // space background
+    startMusic(0); // ESPACE theme on the menu
 
     // Title
-    this.add.text(W / 2, 55, 'DAMOIGMAI', {
+    this.add.text(W / 2, 50, 'DAMOIGMAI', {
       fontFamily: 'Arial', fontSize: '30px', color: '#00ccff',
-    }).setOrigin(0.5).setDepth(10);
-    this.add.text(W / 2, 82, 'SHOOTEUR GALACTIQUE', {
-      fontFamily: 'Arial', fontSize: '7px', color: '#335577',
     }).setOrigin(0.5).setDepth(10);
 
     // Menu items
     this.selected = 0;
     const ITEMS = [
-      { label: 'HISTOIRE',  sub: `8 mondes : ${WORLD_NAMES.join(' · ')}`,   mode: 'story' },
-      { label: 'ENDLESS',   sub: 'vagues infinies · highscores',              mode: 'endless' },
+      { label: 'HISTOIRE',  sub: `8 mondes : ${WORLD_NAMES.join(' · ')}`,  mode: 'story' },
+      { label: 'ENDLESS',   sub: 'vagues infinies · highscores',           mode: 'endless' },
+      { label: 'CONTRÔLES', sub: 'manette & clavier',                      mode: 'controls' },
     ];
 
     this.menuItems = ITEMS.map((item, i) => {
-      const y = H / 2 + 10 + i * 48;
+      const y = 108 + i * 44;
       const bg   = this.add.rectangle(W / 2, y, 360, 34, 0x001133, 0.6).setDepth(9);
-      const lbl  = this.add.text(W / 2, y - 6, item.label, {
+      const lbl  = this.add.text(W / 2, y - 7, item.label, {
         fontFamily: 'Arial', fontSize: '14px', color: '#ffffff',
       }).setOrigin(0.5).setDepth(10);
-      const sub  = this.add.text(W / 2, y + 9, item.sub, {
-        fontFamily: 'Arial', fontSize: '5px', color: '#557788',
+      // Second lines are deliberately larger: tiny text turns to mush once the
+      // 480×270 canvas is upscaled with nearest-neighbour (pixelArt).
+      const sub  = this.add.text(W / 2, y + 10, item.sub, {
+        fontFamily: 'Arial', fontSize: '8px', color: '#557788',
       }).setOrigin(0.5).setDepth(10);
       return { bg, lbl, sub, mode: item.mode };
     });
 
-    this.add.text(W / 2, H - 10, '↑↓ / croix   ESPACE / A : lancer', {
-      fontFamily: 'Arial', fontSize: '6px', color: '#223344',
+    this.add.text(W / 2, H - 12, '↑↓ / croix     ESPACE / A : valider', {
+      fontFamily: 'Arial', fontSize: '10px', color: '#445a70',
     }).setOrigin(0.5).setDepth(10);
 
     this.cursors  = this.input.keyboard.createCursorKeys();
@@ -57,7 +59,7 @@ export default class MenuScene extends Phaser.Scene {
       const sel = i === this.selected;
       item.bg.setFillStyle(sel ? 0x002255 : 0x000d22, sel ? 0.85 : 0.45);
       item.lbl.setStyle({ fontFamily: 'Arial', fontSize: sel ? '16px' : '13px', color: sel ? '#00eeff' : '#778899' });
-      item.sub.setStyle({ fontFamily: 'Arial', fontSize: '5px', color: sel ? '#88aabb' : '#445566' });
+      item.sub.setStyle({ fontFamily: 'Arial', fontSize: sel ? '9px' : '8px', color: sel ? '#88aabb' : '#445566' });
     });
   }
 
@@ -92,10 +94,10 @@ export default class MenuScene extends Phaser.Scene {
 
     if (confirm) {
       const { mode } = this.menuItems[this.selected];
-      if (mode === 'story') {
-        this.scene.start('GameScene', { mode: 'story', world: 0, score: 0 });
+      if (mode === 'controls') {
+        this.scene.start('ControlsScene');
       } else {
-        this.scene.start('GameScene', { mode: 'endless', world: 0, score: 0 });
+        this.scene.start('GameScene', { mode, world: 0, score: 0 });
       }
     }
   }
