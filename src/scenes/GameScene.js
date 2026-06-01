@@ -61,12 +61,13 @@ export default class GameScene extends Phaser.Scene {
     this.powerups     = this.physics.add.group();
 
     const selectedShip = getSelectedShip();
-    const playerKey = (selectedShip && this.textures.exists(selectedShip.key))
+    this.playerKey   = (selectedShip && this.textures.exists(selectedShip.key))
       ? selectedShip.key : 'player';
-    this.player = this.physics.add.sprite(70, H / 2, playerKey).setDepth(10);
-    if (playerKey !== 'player') {
-      // Ship PNGs are 64×64; scale down to roughly match the procedural sprite size.
-      this.player.setScale(0.6);
+    this.playerScale = this.playerKey !== 'player' ? 0.6 : 1;
+
+    this.player = this.physics.add.sprite(70, H / 2, this.playerKey).setDepth(10);
+    if (this.playerScale !== 1) {
+      this.player.setScale(this.playerScale);
       this.player.body.setSize(38, 38);
     }
     this.player.setCollideWorldBounds(true);
@@ -474,7 +475,8 @@ export default class GameScene extends Phaser.Scene {
   addClone(index) {
     const offset = this.computeCloneOffset(index);
     const tint   = index === 1 ? 0x44ddff : 0xdd44ff;
-    const sprite = this.physics.add.sprite(this.player.x + offset.x, this.player.y + offset.y, 'player');
+    const sprite = this.physics.add.sprite(this.player.x + offset.x, this.player.y + offset.y, this.playerKey);
+    if (this.playerScale !== 1) { sprite.setScale(this.playerScale); sprite.body.setSize(38, 38); }
     sprite.setTint(tint).setAlpha(0.82).setDepth(10);
     this.cloneGroup.add(sprite);
     this.clones.push({ sprite, offsetX: offset.x, offsetY: offset.y });
