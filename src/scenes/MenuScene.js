@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { createWorldBackground } from '../backgrounds.js';
 import { startMusic } from '../music.js';
+import { getSelectedShip } from '../shipState.js';
 
 const W = 480, H = 270;
 
@@ -18,14 +19,19 @@ export default class MenuScene extends Phaser.Scene {
 
     // Menu items
     this.selected = 0;
+    const shipSub = () => {
+      const s = getSelectedShip();
+      return s ? s.name : 'sprite auto';
+    };
     const ITEMS = [
       { label: 'HISTOIRE',  sub: '',                                       mode: 'story' },
       { label: 'ENDLESS',   sub: 'vagues infinies · highscores',           mode: 'endless' },
+      { label: 'VAISSEAU',  sub: shipSub(),                                mode: 'ship' },
       { label: 'CONTRÔLES', sub: 'manette & clavier',                      mode: 'controls' },
     ];
 
     this.menuItems = ITEMS.map((item, i) => {
-      const y = 108 + i * 44;
+      const y = 95 + i * 42;
       const bg   = this.add.rectangle(W / 2, y, 360, 34, 0x001133, 0.6).setDepth(9);
       const lbl  = this.add.text(W / 2, y - 7, item.label, {
         fontFamily: 'Arial', fontSize: '14px', color: '#ffffff',
@@ -100,6 +106,8 @@ export default class MenuScene extends Phaser.Scene {
       const { mode } = this.menuItems[this.selected];
       if (mode === 'controls') {
         this.scene.start('ControlsScene');
+      } else if (mode === 'ship') {
+        this.scene.start('ShipSelectScene');
       } else {
         this.scene.start('GameScene', { mode, world: 0, score: 0 });
       }

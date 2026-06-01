@@ -3,6 +3,7 @@ import { sfx } from '../audio.js';
 import { startMusic, stopMusic } from '../music.js';
 import { installKeyboard, isDown, justDown } from '../input.js';
 import { createWorldBackground } from '../backgrounds.js';
+import { getSelectedShip } from '../shipState.js';
 
 const W = 480, H = 270;
 const PLAYER_SPEED   = 180;
@@ -59,7 +60,15 @@ export default class GameScene extends Phaser.Scene {
     this.enemies      = this.physics.add.group();
     this.powerups     = this.physics.add.group();
 
-    this.player = this.physics.add.sprite(70, H / 2, 'player').setDepth(10);
+    const selectedShip = getSelectedShip();
+    const playerKey = (selectedShip && this.textures.exists(selectedShip.key))
+      ? selectedShip.key : 'player';
+    this.player = this.physics.add.sprite(70, H / 2, playerKey).setDepth(10);
+    if (playerKey !== 'player') {
+      // Ship PNGs are 64×64; scale down to roughly match the procedural sprite size.
+      this.player.setScale(0.6);
+      this.player.body.setSize(38, 38);
+    }
     this.player.setCollideWorldBounds(true);
 
     this.physics.add.overlap(this.bullets,      this.enemies,  this.onBulletHitEnemy,  null, this);
