@@ -9,38 +9,37 @@ export default class MenuScene extends Phaser.Scene {
   constructor() { super('MenuScene'); }
 
   create() {
-    this.bgLayers = createWorldBackground(this, 0); // space background
-    startMusic(0); // ESPACE theme on the menu
+    this.bgLayers = createWorldBackground(this, 0);
+    startMusic(0);
 
-    // Title
     this.add.text(W / 2, 50, 'DAMOIGMAI', {
       fontFamily: 'Arial', fontSize: '30px', color: '#00ccff',
     }).setOrigin(0.5).setDepth(10);
 
-    // Menu items
     this.selected = 0;
-    const shipSub = () => {
-      const s = getSelectedShip();
-      return s ? s.name : 'sprite auto';
-    };
+    const shipSub = () => { const s = getSelectedShip(); return s ? s.name : 'sprite auto'; };
     const ITEMS = [
-      { label: 'HISTOIRE',  sub: '',                                       mode: 'story' },
-      { label: 'ENDLESS',   sub: 'vagues infinies · highscores',           mode: 'endless' },
-      { label: 'VAISSEAU',  sub: shipSub(),                                mode: 'ship' },
-      { label: 'CONTRÔLES', sub: 'manette & clavier',                      mode: 'controls' },
+      { label: 'HISTOIRE',  sub: '',                             mode: 'story'    },
+      { label: 'ENDLESS',   sub: 'vagues infinies · highscores', mode: 'endless'  },
+      { label: 'VAISSEAU',  sub: shipSub(),                      mode: 'ship'     },
+      { label: 'CONTRÔLES', sub: 'manette & clavier',            mode: 'controls' },
     ];
 
     this.menuItems = ITEMS.map((item, i) => {
       const y = 95 + i * 42;
-      const bg   = this.add.rectangle(W / 2, y, 360, 34, 0x001133, 0.6).setDepth(9);
-      const lbl  = this.add.text(W / 2, y - 7, item.label, {
+      const bg  = this.add.rectangle(W / 2, y, 360, 34, 0x001133, 0.6).setDepth(9);
+      const lbl = this.add.text(W / 2, y - 7, item.label, {
         fontFamily: 'Arial', fontSize: '14px', color: '#ffffff',
       }).setOrigin(0.5).setDepth(10);
-      // Second lines are deliberately larger: tiny text turns to mush once the
-      // 480×270 canvas is upscaled with nearest-neighbour (pixelArt).
-      const sub  = this.add.text(W / 2, y + 10, item.sub, {
+      const sub = this.add.text(W / 2, y + 10, item.sub, {
         fontFamily: 'Arial', fontSize: '8px', color: '#557788',
       }).setOrigin(0.5).setDepth(10);
+
+      // Touch / mouse tap support
+      bg.setInteractive({ useHandCursor: true });
+      bg.on('pointerover', () => { this.selected = i; this.refreshMenu(); });
+      bg.on('pointerdown', () => { this.selected = i; this.navigate(item.mode); });
+
       return { bg, lbl, sub, mode: item.mode };
     });
 
@@ -52,9 +51,6 @@ export default class MenuScene extends Phaser.Scene {
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
 
-    // Seed edge-trackers from the current pad state so a button still held from
-    // the previous scene (e.g. A confirming "menu principal" in the pause menu)
-    // is not read as a fresh press on this menu's first frame.
     const pad = this.input.gamepad?.pad1 ?? null;
     this._padUp     = (pad?.buttons[12]?.pressed ?? false) || (pad?.axes[1]?.getValue() ?? 0) < -0.5;
     this._padDown   = (pad?.buttons[13]?.pressed ?? false) || (pad?.axes[1]?.getValue() ?? 0) > 0.5;
@@ -62,6 +58,12 @@ export default class MenuScene extends Phaser.Scene {
     this._padSelect = pad?.buttons[8]?.pressed ?? false;
 
     this.refreshMenu();
+  }
+
+  navigate(mode) {
+    if (mode === 'controls') this.scene.start('ControlsScene');
+    else if (mode === 'ship') this.scene.start('ShipSelectScene');
+    else this.scene.start('GameScene', { mode, world: 0, score: 0 });
   }
 
   refreshMenu() {
@@ -82,35 +84,22 @@ export default class MenuScene extends Phaser.Scene {
     const padA      = pad?.buttons[0]?.pressed ?? false;
     const padSelect = pad?.buttons[8]?.pressed ?? false;
 
-    const upJust    = Phaser.Input.Keyboard.JustDown(this.cursors.up)   || (padUp && !this._padUp);
-    const downJust  = Phaser.Input.Keyboard.JustDown(this.cursors.down) || (padDown && !this._padDown);
-    const confirm   = Phaser.Input.Keyboard.JustDown(this.spaceKey)
-                   || Phaser.Input.Keyboard.JustDown(this.enterKey)
-                   || (padA && !this._padA);
+    const upJust   = Phaser.Input.Keyboard.JustDown(this.cursors.up)   || (padUp && !this._padUp);
+    const downJust = Phaser.Input.Keyboard.JustDown(this.cursors.down) || (padDown && !this._padDown);
+    const confirm  = Phaser.Input.Keyboard.JustDown(this.spaceKey)
+                  || Phaser.Input.Keyboard.JustDown(this.enterKey)
+                  || (padA && !this._padA);
 
     if (padSelect && !this._padSelect) {
       if (this.scale.isFullscreen) this.scale.stopFullscreen();
       else this.scale.startFullscreen();
     }
 
-    this._padUp     = padUp;
-    this._padDown   = padDown;
-    this._padA      = padA;
-    this._padSelect = padSelect;
+    this._padUp = padUp; this._padDown = padDown; this._padA = padA; this._padSelect = padSelect;
 
     const n = this.menuItems.length;
     if (upJust)   { this.selected = (this.selected - 1 + n) % n; this.refreshMenu(); }
     if (downJust) { this.selected = (this.selected + 1) % n;     this.refreshMenu(); }
-
-    if (confirm) {
-      const { mode } = this.menuItems[this.selected];
-      if (mode === 'controls') {
-        this.scene.start('ControlsScene');
-      } else if (mode === 'ship') {
-        this.scene.start('ShipSelectScene');
-      } else {
-        this.scene.start('GameScene', { mode, world: 0, score: 0 });
-      }
-    }
+    if (confirm)  this.navigate(this.menuItems[this.selected].mode);
   }
 }

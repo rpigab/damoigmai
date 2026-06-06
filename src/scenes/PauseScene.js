@@ -31,6 +31,11 @@ export default class PauseScene extends Phaser.Scene {
       const lbl = this.add.text(W / 2, y, item.label, {
         fontFamily: 'Arial', fontSize: '13px', color: '#ffffff',
       }).setOrigin(0.5).setDepth(41);
+
+      bg.setInteractive({ useHandCursor: true });
+      bg.on('pointerover', () => { this.selected = i; this.refresh(); });
+      bg.on('pointerdown', () => { this.selected = i; this.activate(); });
+
       return { bg, lbl, action: item.action };
     });
 
@@ -62,6 +67,15 @@ export default class PauseScene extends Phaser.Scene {
       it.bg.setFillStyle(sel ? 0x002255 : 0x000d22, sel ? 0.85 : 0.45);
       it.lbl.setStyle({ fontFamily: 'Arial', fontSize: sel ? '15px' : '12px', color: sel ? '#00eeff' : '#889aa9' });
     });
+  }
+
+  activate() {
+    const action = this.items[this.selected].action;
+    if (action === 'resume') this.resume();
+    else if (action === 'controls') {
+      this.scene.launch('ControlsScene', { returnTo: 'pause' });
+      this.scene.pause();
+    } else this.toMenu();
   }
 
   resume() {
@@ -100,13 +114,6 @@ export default class PauseScene extends Phaser.Scene {
     if (up)   { this.selected = (this.selected - 1 + n) % n; this.refresh(); }
     if (down) { this.selected = (this.selected + 1) % n;     this.refresh(); }
 
-    if (confirm) {
-      const action = this.items[this.selected].action;
-      if (action === 'resume') this.resume();
-      else if (action === 'controls') {
-        this.scene.launch('ControlsScene', { returnTo: 'pause' });
-        this.scene.pause();
-      } else this.toMenu();
-    }
+    if (confirm) this.activate();
   }
 }

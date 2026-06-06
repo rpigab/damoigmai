@@ -21,10 +21,13 @@ export default class ControlsScene extends Phaser.Scene {
 
     this.buildContent();
 
-    const hint = this.returnTo === 'pause' ? 'ÉCHAP : reprendre la partie' : 'ÉCHAP : retour au menu';
-    this.add.text(W / 2, H - 10, hint, {
-      fontFamily: 'Arial', fontSize: '8px', color: '#445566',
-    }).setOrigin(0.5, 0.5).setDepth(41);
+    const hint = this.returnTo === 'pause' ? '← Reprendre la partie' : '← Retour au menu';
+    const backBtn = this.add.text(W / 2, H - 10, hint, {
+      fontFamily: 'Arial', fontSize: '9px', color: '#5577aa',
+    }).setOrigin(0.5, 0.5).setDepth(41).setInteractive({ useHandCursor: true });
+    backBtn.on('pointerover', () => backBtn.setColor('#00ccff'));
+    backBtn.on('pointerout',  () => backBtn.setColor('#5577aa'));
+    backBtn.on('pointerdown', () => this.back());
 
     // Seed gamepad edge tracker so the button that opened this screen isn't
     // immediately re-read.

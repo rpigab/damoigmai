@@ -94,8 +94,10 @@ export default class GameScene extends Phaser.Scene {
     this.cloneGroup    = this.physics.add.group();
     this.padCloneBtn   = false;
 
-    this.input.gamepad.on('connected', () => {
-      if (this.tc) this.tc.setVisible(false);
+    this.input.gamepad.on('connected', (pad) => {
+      // Only hide touch controls for a real physical gamepad (has analogue axes).
+      // Phaser can fire 'connected' for phantom/virtual entries on scene restart.
+      if (this.tc && (pad?.axes?.length ?? 0) >= 2) this.tc.setVisible(false);
       const t = this.add.text(W / 2, 40, 'MANETTE CONNECTÉE', {
         fontFamily: 'Arial', fontSize: '8px', color: '#88ff88',
       }).setOrigin(0.5).setDepth(30);
@@ -106,10 +108,9 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.enemyBullets, this.cloneGroup, this.onEnemyBulletHitClone, null, this);
     this.physics.add.overlap(this.cloneGroup,   this.powerups,   this.onPickupPowerup,        null, this);
 
-    // Touch controls — only on touch devices; hidden automatically when a gamepad connects.
+    // Touch controls — only on touch devices; hidden by the 'connected' handler above.
     const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
     this.tc = hasTouch ? createTouchControls(this) : null;
-    if (this.tc && this.input.gamepad?.pad1) this.tc.setVisible(false);
 
     // Conserve les clones entre les mondes (mode histoire).
     const carriedClones = Math.min(data.cloneCount ?? 0, 2);

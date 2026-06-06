@@ -5,12 +5,11 @@ import { SHIPS, getSelectedShipIndex, setSelectedShipIndex } from '../shipState.
 
 const W = 480, H = 270;
 
-// Spacing for the thumbnail row
-const THUMB_SCALE  = 0.45;   // 64 * 0.45 ≈ 29px per thumb
-const THUMB_PITCH  = 36;     // horizontal distance between thumb centres
-const THUMB_Y      = 232;
-const PREVIEW_Y    = 118;
-const PREVIEW_SCALE = 1.6;  // 64 * 1.6 = 102px — large enough to read detail
+const THUMB_SCALE  = 0.45;
+const THUMB_PITCH  = 36;
+const THUMB_Y      = 225;
+const PREVIEW_Y    = 112;
+const PREVIEW_SCALE = 1.6;
 
 export default class ShipSelectScene extends Phaser.Scene {
   constructor() { super('ShipSelectScene'); }
@@ -18,72 +17,62 @@ export default class ShipSelectScene extends Phaser.Scene {
   create() {
     installKeyboard();
     this.bgLayers = createWorldBackground(this, 0);
-
-    // Start from previously selected index, defaulting to 0
     this.idx = getSelectedShipIndex() ?? 0;
 
     this.add.text(W / 2, 14, 'VAISSEAU', {
       fontFamily: 'Arial', fontSize: '18px', color: '#00ccff',
     }).setOrigin(0.5).setDepth(10);
 
-    // Build thumbnail row — centred
+    // Thumbnail row
     const totalW = (SHIPS.length - 1) * THUMB_PITCH;
     this.thumbStartX = W / 2 - totalW / 2;
-
-    this.thumbBgs = [];
-    this.thumbImgs = [];
-    this.thumbErrors = []; // fallback squares for failed loads
+    this.thumbBgs = []; this.thumbImgs = []; this.thumbErrors = [];
 
     SHIPS.forEach((ship, i) => {
       const tx = this.thumbStartX + i * THUMB_PITCH;
-
       const bg = this.add.rectangle(tx, THUMB_Y, 31, 31, 0x001133, 0.7)
         .setDepth(9).setStrokeStyle(1, 0x224466, 1);
       this.thumbBgs.push(bg);
 
-      const textureKey = ship.key;
-      if (this.textures.exists(textureKey)) {
-        const img = this.add.image(tx, THUMB_Y, textureKey)
-          .setScale(THUMB_SCALE).setDepth(10);
-        this.thumbImgs.push(img);
+      if (this.textures.exists(ship.key)) {
+        this.thumbImgs.push(this.add.image(tx, THUMB_Y, ship.key).setScale(THUMB_SCALE).setDepth(10));
         this.thumbErrors.push(null);
       } else {
-        // Texture failed to load — draw a coloured square as fallback
         const g = this.add.graphics().setDepth(10);
-        g.fillStyle(0x334466, 1);
-        g.fillRect(tx - 14, THUMB_Y - 14, 28, 28);
-        this.thumbImgs.push(null);
-        this.thumbErrors.push(g);
+        g.fillStyle(0x334466, 1); g.fillRect(tx - 14, THUMB_Y - 14, 28, 28);
+        this.thumbImgs.push(null); this.thumbErrors.push(g);
       }
+
+      // Tap to select
+      bg.setInteractive({ useHandCursor: true });
+      bg.on('pointerdown', () => { this.idx = i; this.refreshView(); });
     });
 
     // Large preview
-    this.previewImg   = null;
-    this.previewError = null;
+    this.previewImg = null; this.previewError = null;
     this.previewBg = this.add.rectangle(W / 2, PREVIEW_Y, 110, 110, 0x001133, 0.5)
       .setDepth(9).setStrokeStyle(1, 0x00ccff, 0.6);
-
-    // Ship name
     this.nameTxt = this.add.text(W / 2, PREVIEW_Y + 62, '', {
       fontFamily: 'Arial', fontSize: '12px', color: '#00eeff',
     }).setOrigin(0.5).setDepth(10);
-
-    // "Aucun vaisseau" option (use procedural sprite)
     this.noneLabel = this.add.text(W / 2, PREVIEW_Y + 76, '', {
       fontFamily: 'Arial', fontSize: '8px', color: '#445566',
     }).setOrigin(0.5).setDepth(10);
 
-    // Footer
-    this.add.text(W / 2, H - 12, '◄ ►  choisir      ESPACE / A : confirmer      ÉCHAP : retour', {
-      fontFamily: 'Arial', fontSize: '9px', color: '#445566',
+    // ── Touch-friendly buttons ──────────────────────────────────────────────
+    this._makeBtn(60, H - 16, '← Retour', 0x001133, 0x334455, () => {
+      this.scene.start('MenuScene');
+    });
+    this._makeBtn(W - 60, H - 16, '✓ Confirmer', 0x003322, 0x00aa55, () => {
+      setSelectedShipIndex(this.idx);
+      this.scene.start('MenuScene');
+    });
+
+    // Keyboard hint
+    this.add.text(W / 2, H - 16, '◄ ► choisir   A : confirmer', {
+      fontFamily: 'Arial', fontSize: '8px', color: '#334455',
     }).setOrigin(0.5).setDepth(10);
 
-    // "Aucun" option hint at top-left
-    this.add.text(8, H - 12, 'AUCUN : sprite auto', {
-      fontFamily: 'Arial', fontSize: '8px', color: '#334455',
-    }).setOrigin(0, 1).setDepth(10);
-
-    // Gamepad edge tracking
     const pad = this.input.gamepad?.pad1 ?? null;
     this._padL = (pad?.buttons[14]?.pressed ?? false) || (pad?.axes[0]?.getValue() ?? 0) < -0.5;
     this._padR = (pad?.buttons[15]?.pressed ?? false) || (pad?.axes[0]?.getValue() ?? 0) > 0.5;
@@ -93,8 +82,20 @@ export default class ShipSelectScene extends Phaser.Scene {
     this.refreshView();
   }
 
+  // Draws a small rounded button with label and fires cb on tap/click.
+  _makeBtn(cx, cy, label, fillHex, strokeHex, cb) {
+    const w = label.length * 5.5 + 14, h = 18;
+    const g = this.add.graphics().setDepth(10);
+    g.fillStyle(fillHex, 0.85); g.fillRoundedRect(cx - w / 2, cy - h / 2, w, h, 4);
+    g.lineStyle(1, strokeHex, 0.8); g.strokeRoundedRect(cx - w / 2, cy - h / 2, w, h, 4);
+    const zone = this.add.zone(cx, cy, w + 6, h + 6).setDepth(11).setInteractive({ useHandCursor: true });
+    zone.on('pointerdown', cb);
+    this.add.text(cx, cy, label, {
+      fontFamily: 'Arial', fontSize: '8px', color: '#aaccbb',
+    }).setOrigin(0.5).setDepth(11);
+  }
+
   refreshView() {
-    // Highlight selected thumbnail
     this.thumbBgs.forEach((bg, i) => {
       const sel = i === this.idx;
       bg.setFillStyle(sel ? 0x003366 : 0x001133, sel ? 0.9 : 0.7);
@@ -106,7 +107,6 @@ export default class ShipSelectScene extends Phaser.Scene {
       img.setAlpha(i === this.idx ? 1 : 0.6);
     });
 
-    // Update large preview
     if (this.previewImg)   { this.previewImg.destroy();   this.previewImg   = null; }
     if (this.previewError) { this.previewError.destroy(); this.previewError = null; }
 
@@ -114,13 +114,10 @@ export default class ShipSelectScene extends Phaser.Scene {
     this.nameTxt.setText(ship.name);
 
     if (this.textures.exists(ship.key)) {
-      this.previewImg = this.add.image(W / 2, PREVIEW_Y, ship.key)
-        .setScale(PREVIEW_SCALE).setDepth(10);
+      this.previewImg = this.add.image(W / 2, PREVIEW_Y, ship.key).setScale(PREVIEW_SCALE).setDepth(10);
     } else {
-      // Fallback: coloured square with key name
       const g = this.add.graphics().setDepth(10);
-      g.fillStyle(0x224466, 1);
-      g.fillRect(W / 2 - 40, PREVIEW_Y - 40, 80, 80);
+      g.fillStyle(0x224466, 1); g.fillRect(W / 2 - 40, PREVIEW_Y - 40, 80, 80);
       this.previewError = g;
       this.nameTxt.setText(ship.name + '\n(sprite manquant)');
     }
@@ -142,14 +139,9 @@ export default class ShipSelectScene extends Phaser.Scene {
 
     this._padL = padL; this._padR = padR; this._padB = padB; this._padA = padA;
 
-    if (back) { this.scene.start('MenuScene'); return; }
-
+    if (back)  { this.scene.start('MenuScene'); return; }
     if (left)  { this.idx = (this.idx - 1 + SHIPS.length) % SHIPS.length; this.refreshView(); }
     if (right) { this.idx = (this.idx + 1) % SHIPS.length; this.refreshView(); }
-
-    if (confirm) {
-      setSelectedShipIndex(this.idx);
-      this.scene.start('MenuScene');
-    }
+    if (confirm) { setSelectedShipIndex(this.idx); this.scene.start('MenuScene'); }
   }
 }
