@@ -77,9 +77,10 @@ export default class ControlsScene extends Phaser.Scene {
   }
 
   sectionHeader(y, label) {
+    // Use fillRect instead of path-based stroke — more compatible with Phaser 4.
     const g = this.add.graphics().setDepth(40);
-    g.lineStyle(1, 0x223344, 0.9);
-    g.beginPath(); g.moveTo(28, y + 5); g.lineTo(W - 28, y + 5); g.strokePath();
+    g.fillStyle(0x223344, 0.9);
+    g.fillRect(28, y + 5, W - 56, 1);
     this.add.text(28, y, label, {
       fontFamily: 'Arial', fontSize: '8px', color: '#445e78', fontStyle: 'bold',
     }).setOrigin(0, 0.5).setDepth(41);
