@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="24" fill="#000814"/>
+  <!-- Stars -->
+  <circle cx="28"  cy="38"  r="2"   fill="#ffffff" opacity="0.9"/>
+  <circle cx="158" cy="66"  r="1.5" fill="#ffffff" opacity="0.7"/>
+  <circle cx="48"  cy="130" r="1.5" fill="#ffffff" opacity="0.6"/>
+  <circle cx="172" cy="152" r="2"   fill="#ffffff" opacity="0.8"/>
+  <circle cx="138" cy="24"  r="1.5" fill="#ffffff" opacity="0.9"/>
+  <circle cx="18"  cy="162" r="1"   fill="#ffffff" opacity="0.5"/>
+  <circle cx="82"  cy="172" r="1"   fill="#ffffff" opacity="0.6"/>
+  <circle cx="170" cy="40"  r="1"   fill="#ffffff" opacity="0.5"/>
+  <!-- Engine flame (behind hull) -->
+  <ellipse cx="96" cy="158" rx="20" ry="12" fill="#ff6600" opacity="0.85"/>
+  <ellipse cx="96" cy="163" rx="11" ry="7"  fill="#ffcc00" opacity="0.8"/>
+  <!-- Spaceship hull -->
+  <polygon points="96,34 136,148 96,128 56,148" fill="#00ccff"/>
+  <!-- Centre stripe (darker) -->
+  <polygon points="96,60 108,148 96,138 84,148" fill="#0077aa"/>
+  <!-- Cockpit frame -->
+  <ellipse cx="96" cy="80"  rx="14" ry="20" fill="#003a55"/>
+  <!-- Cockpit glass -->
+  <ellipse cx="96" cy="80"  rx="9"  ry="14" fill="#004f77" opacity="0.7"/>
+  <ellipse cx="92" cy="74"  rx="3"  ry="4"  fill="#80e8ff" opacity="0.5"/>
+  <!-- Wing tips -->
+  <polygon points="96,112 136,148 120,148" fill="#0099cc" opacity="0.65"/>
+  <polygon points="96,112  56,148  72,148" fill="#0099cc" opacity="0.65"/>
+</svg>
