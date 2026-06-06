@@ -79,7 +79,7 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player,       this.powerups, this.onPickupPowerup,   null, this);
 
     this.score       = data.score ?? 0;
-    this.lives       = 3;
+    this.lives       = data.lives ?? 3;
     this.fireCD      = 0;
     this.invTimer    = 0;
     this.dead        = false;
@@ -130,7 +130,7 @@ export default class GameScene extends Phaser.Scene {
     // HUD
     const hs = { fontFamily: 'Arial', fontSize: '10px', color: '#ffffff' };
     this.scoreTxt = this.add.text(W - 6, 6, `${this.score}`, hs).setOrigin(1, 0).setDepth(20);
-    this.livesTxt = this.add.text(6, 6, '♥ ♥ ♥', { ...hs, color: '#ff4455' }).setOrigin(0, 0).setDepth(20);
+    this.livesTxt = this.add.text(6, 6, ('♥ ').repeat(this.lives).trim(), { ...hs, color: '#ff4455' }).setOrigin(0, 0).setDepth(20);
 
     this.createWeaponHUD();
 
@@ -842,7 +842,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (next < 8) {
       this.time.delayedCall(3200, () => {
-        this.scene.start('GameScene', { mode: 'story', world: next, score: this.score, weaponStack: this.weaponStack, cloneCount: this.clones.length });
+        this.scene.start('GameScene', { mode: 'story', world: next, score: this.score, lives: this.lives, weaponStack: this.weaponStack, cloneCount: this.clones.length });
       });
     } else {
       this.triggerVictory();

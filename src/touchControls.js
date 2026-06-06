@@ -54,14 +54,10 @@ export function createTouchControls(scene) {
     reg(scene.add.text(x, y, label, { fontFamily: 'Arial', fontSize: `${size}px`, color })
       .setOrigin(0.5).setDepth(D + 1));
 
-  // ── Static bases ──────────────────────────────────────────────────────────
+  // ── Static bases (fire-tap only — sticks show knob only, no outer ring) ──
   const baseGfx = reg(scene.add.graphics().setDepth(D));
   function drawBases() {
     baseGfx.clear();
-    for (const { cx, cy, r } of [LS, RS]) {
-      baseGfx.fillStyle(0x0a1520, 0.55); baseGfx.fillCircle(cx, cy, r);
-      baseGfx.lineStyle(1.5, 0x2a4a6a, 0.7); baseGfx.strokeCircle(cx, cy, r);
-    }
     baseGfx.fillStyle(0x881100, 0.75); baseGfx.fillCircle(FT.cx, FT.cy, FT.r);
     baseGfx.lineStyle(1.5, 0xff4422, 0.9); baseGfx.strokeCircle(FT.cx, FT.cy, FT.r);
   }
