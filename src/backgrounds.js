@@ -10,9 +10,19 @@ export const WORLD_BG_COLORS = [
   0x00000a, 0x120800, 0x000818, 0x060c18, 0x020602, 0x040406, 0x000c0c, 0x060008,
 ];
 
-// Parallax configs per world: [far, near] each = [textureKey, scrollSpeedX]
+// Parallax configs per world.
+// Each entry: [textureKey, scrollSpeedX, opts?]
+// opts.depth    — explicit depth (default = layer index)
+// opts.tileScale — applied to tileSprite when texture is smaller than canvas
+//                  (CDN 160×90 layers need tileScale:3 to fill 480×270 at PIXEL_SCALE=3)
 const WORLD_CFGS = [
-  [['bg_space_far', 0.25], ['bg_space_near', 0.6]],
+  // ESPACE — 4 CDN layers (160×90, tileScale:3). speedX already ÷3 vs full-size textures.
+  [
+    ['bg_space_layer0', 0.08, { depth: 0,  tileScale: 3 }],  // deep space, opaque
+    ['bg_space_layer1', 0.12, { depth: 1,  tileScale: 3 }],  // nebula wash
+    ['bg_space_layer2', 0.20, { depth: 2,  tileScale: 3 }],  // mid stars
+    ['bg_space_layer3', 0.33, { depth: 12, tileScale: 3 }],  // foreground — above enemies (depth 9)
+  ],
   [['bg_desert_far', 0.2], ['bg_desert_near', 0.7]],
   [['bg_ocean_far', 0.15], ['bg_ocean_near', 0.55]],
   [['bg_snow_far', 0.2], ['bg_snow_near', 0.65]],
@@ -23,14 +33,16 @@ const WORLD_CFGS = [
 ];
 
 export function createWorldBackground(scene, worldIndex) {
-  return WORLD_CFGS[worldIndex].map(([key, speedX], depth) => ({
-    sprite: scene.add.tileSprite(0, 0, W, H, key).setOrigin(0, 0).setDepth(depth),
-    speedX,
-  }));
+  return WORLD_CFGS[worldIndex].map(([key, speedX, opts = {}], i) => {
+    const depth = opts.depth ?? i;
+    const sprite = scene.add.tileSprite(0, 0, W, H, key).setOrigin(0, 0).setDepth(depth);
+    if (opts.tileScale) sprite.setTileScale(opts.tileScale);
+    return { sprite, speedX };
+  });
 }
 
 export function generateWorldTextures(scene) {
-  makeSpaceLayers(scene);
+  // makeSpaceLayers removed — ESPACE now uses CDN PNGs loaded in BootScene.
   makeDesertLayers(scene);
   makeOceanLayers(scene);
   makeSnowLayers(scene);
@@ -38,38 +50,6 @@ export function generateWorldTextures(scene) {
   makeCityLayers(scene);
   makeTechnoLayers(scene);
   makeAbstractLayers(scene);
-}
-
-// ---- ESPACE ----
-function makeSpaceLayers(scene) {
-  const r1 = new Phaser.Math.RandomDataGenerator(['space-far']);
-  let g = scene.add.graphics();
-  for (let i = 0; i < 110; i++) {
-    const x = r1.integerInRange(0, W - 1), y = r1.integerInRange(0, H - 1);
-    const b = r1.integerInRange(40, 150);
-    g.fillStyle((b << 16) | (b << 8) | b, 1);
-    g.fillRect(x, y, 1, 1);
-  }
-  g.generateTexture('bg_space_far', W, H);
-  g.destroy();
-
-  const r2 = new Phaser.Math.RandomDataGenerator(['space-near']);
-  g = scene.add.graphics();
-  for (let i = 0; i < 55; i++) {
-    const x = r2.integerInRange(0, W - 1), y = r2.integerInRange(0, H - 1);
-    const b = r2.integerInRange(120, 255);
-    const col = r2.pick([(b << 16)|(b << 8)|b, 0xaaccff, 0xffaaaa, 0xaaaaff]);
-    const sz = r2.integerInRange(0, 4) === 0 ? 2 : 1;
-    g.fillStyle(col, r2.realInRange(0.5, 1));
-    g.fillRect(x, y, sz, sz);
-  }
-  for (let i = 0; i < 3; i++) {
-    const nx = r2.integerInRange(40, W - 40), ny = r2.integerInRange(20, H - 20);
-    g.fillStyle(r2.pick([0x220044, 0x003366, 0x440022]), 0.45);
-    g.fillEllipse(nx, ny, r2.integerInRange(60, 120), r2.integerInRange(20, 50));
-  }
-  g.generateTexture('bg_space_near', W, H);
-  g.destroy();
 }
 
 // ---- DÉSERT ----
