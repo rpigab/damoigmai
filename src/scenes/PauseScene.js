@@ -20,12 +20,13 @@ export default class PauseScene extends Phaser.Scene {
 
     this.selected = 0;
     const ITEMS = [
-      { label: 'REPRENDRE',      action: 'resume' },
-      { label: 'MENU PRINCIPAL', action: 'menu'   },
+      { label: 'REPRENDRE',      action: 'resume'   },
+      { label: 'CONTRÔLES',      action: 'controls' },
+      { label: 'MENU PRINCIPAL', action: 'menu'     },
     ];
 
     this.items = ITEMS.map((item, i) => {
-      const y = H / 2 - 8 + i * 30;
+      const y = H / 2 - 18 + i * 26;
       const bg  = this.add.rectangle(W / 2, y, 220, 24, 0x001133, 0.6).setDepth(40);
       const lbl = this.add.text(W / 2, y, item.label, {
         fontFamily: 'Arial', fontSize: '13px', color: '#ffffff',
@@ -33,7 +34,7 @@ export default class PauseScene extends Phaser.Scene {
       return { bg, lbl, action: item.action };
     });
 
-    this.add.text(W / 2, H / 2 + 64, 'la progression est perdue en quittant', {
+    this.add.text(W / 2, H / 2 + 60, 'la progression est perdue en quittant', {
       fontFamily: 'Arial', fontSize: '9px', color: '#667788',
     }).setOrigin(0.5).setDepth(41);
 
@@ -44,6 +45,13 @@ export default class PauseScene extends Phaser.Scene {
     this._padUp = false; this._padDown = false;
     this._padStart = true; this._padA = false; this._padB = false;
     justDown('Escape'); // prime so the opening press isn't re-read
+
+    // Re-prime inputs when returning from ControlsScene.
+    this.events.on('wake', () => {
+      justDown('Escape');
+      this._padStart = true;
+      this._padB = true;
+    });
 
     this.refresh();
   }
@@ -93,8 +101,12 @@ export default class PauseScene extends Phaser.Scene {
     if (down) { this.selected = (this.selected + 1) % n;     this.refresh(); }
 
     if (confirm) {
-      if (this.items[this.selected].action === 'resume') this.resume();
-      else this.toMenu();
+      const action = this.items[this.selected].action;
+      if (action === 'resume') this.resume();
+      else if (action === 'controls') {
+        this.scene.launch('ControlsScene', { returnTo: 'pause' });
+        this.scene.pause();
+      } else this.toMenu();
     }
   }
 }
