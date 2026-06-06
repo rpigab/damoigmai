@@ -2,14 +2,24 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Damoigmai — Space Shooter</title>
+
+  <!-- PWA -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Damoigmai" />
+  <meta name="theme-color" content="#000814" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    body { background: #000; display: flex; justify-content: center; align-items: center; height: 100dvh; overflow: hidden; touch-action: none; }
     canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
   </style>
-  <script type="module" crossorigin src="/damoigmai/assets/index-5A9Xvxgi.js"></script>
-</head>
+  <script type="module" crossorigin src="/damoigmai/assets/index-Ca6yABU0.js"></script>
+<link rel="manifest" href="/damoigmai/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/damoigmai/registerSW.js"></script></head>
 <body>
 </body>
 </html>
