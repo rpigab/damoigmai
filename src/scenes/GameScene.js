@@ -4,6 +4,7 @@ import { startMusic, stopMusic } from '../music.js';
 import { installKeyboard, isDown, justDown } from '../input.js';
 import { createWorldBackground } from '../backgrounds.js';
 import { getSelectedShip } from '../shipState.js';
+import { createTouchControls } from '../touchControls.js';
 
 const W = 480, H = 270;
 const PLAYER_SPEED   = 180;
@@ -94,14 +95,21 @@ export default class GameScene extends Phaser.Scene {
     this.padCloneBtn   = false;
 
     this.input.gamepad.on('connected', () => {
+      if (this.tc) this.tc.setVisible(false);
       const t = this.add.text(W / 2, 40, 'MANETTE CONNECTÉE', {
         fontFamily: 'Arial', fontSize: '8px', color: '#88ff88',
       }).setOrigin(0.5).setDepth(30);
       this.tweens.add({ targets: t, y: 20, alpha: 0, duration: 2500, onComplete: () => t.destroy() });
     });
+    this.input.gamepad.on('disconnected', () => { if (this.tc) this.tc.setVisible(true); });
 
     this.physics.add.overlap(this.enemyBullets, this.cloneGroup, this.onEnemyBulletHitClone, null, this);
     this.physics.add.overlap(this.cloneGroup,   this.powerups,   this.onPickupPowerup,        null, this);
+
+    // Touch controls — only on touch devices; hidden automatically when a gamepad connects.
+    const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    this.tc = hasTouch ? createTouchControls(this) : null;
+    if (this.tc && this.input.gamepad?.pad1) this.tc.setVisible(false);
 
     // Conserve les clones entre les mondes (mode histoire).
     const carriedClones = Math.min(data.cloneCount ?? 0, 2);
@@ -273,13 +281,15 @@ export default class GameScene extends Phaser.Scene {
         this.time.delayedCall(2200, () => this.startWave());
       }
     }
+
+    this.tc?.clearJust();
   }
 
   // Start (gamepad) or Échap (keyboard) opens the pause overlay.
   checkPause() {
     const pad = this.input.gamepad?.pad1 ?? null;
     const padStart = pad?.buttons[9]?.pressed ?? false;
-    const open = justDown('Escape') || (padStart && !this._padStart);
+    const open = justDown('Escape') || (padStart && !this._padStart) || (this.tc?.justPause ?? false);
     this._padStart = padStart;
     if (open) {
       this.player.setVelocity(0, 0);
@@ -356,6 +366,9 @@ export default class GameScene extends Phaser.Scene {
     let vy = up   ? -PLAYER_SPEED : down  ? PLAYER_SPEED : 0;
     if (gx !== 0) vx = gx * PLAYER_SPEED;
     if (gy !== 0) vy = gy * PLAYER_SPEED;
+    // Touch left stick overrides when active
+    const tl = this.tc?.leftAxis;
+    if (tl && (tl.x !== 0 || tl.y !== 0)) { vx = tl.x * PLAYER_SPEED; vy = tl.y * PLAYER_SPEED; }
 
     this.player.setVelocity(vx, vy);
     this.player.x = Phaser.Math.Clamp(this.player.x, 20, W - 20);
@@ -365,15 +378,15 @@ export default class GameScene extends Phaser.Scene {
     const selectNow = pad?.buttons[8]?.pressed ?? false;
     const lbNow     = pad?.buttons[4]?.pressed ?? false;
     const rbNow     = pad?.buttons[5]?.pressed ?? false;
-    if (justDown('KeyQ') || (yNow && !this.padCloneBtn)) {
+    if (justDown('KeyQ') || (yNow && !this.padCloneBtn) || this.tc?.justClone) {
       this.tryInvokeClone();
     }
-    if (selectNow && !this._padSelect) {
+    if ((selectNow && !this._padSelect) || this.tc?.justFullscreen) {
       if (this.scale.isFullscreen) this.scale.stopFullscreen();
       else this.scale.startFullscreen();
     }
-    if (lbNow && !this._padLB) this.trySacrificeClones('life');
-    if (rbNow && !this._padRB) this.trySacrificeClones('bomb');
+    if ((lbNow && !this._padLB) || this.tc?.justLB) this.trySacrificeClones('life');
+    if ((rbNow && !this._padRB) || this.tc?.justRB) this.trySacrificeClones('bomb');
     this.padCloneBtn  = yNow;
     this._padSelect   = selectNow;
     this._padLB       = lbNow;
@@ -385,7 +398,8 @@ export default class GameScene extends Phaser.Scene {
     const pad     = this.input.gamepad?.pad1 ?? null;
     // Only RT (right trigger) fires on gamepad — the A button no longer shoots.
     const padFire = (pad?.buttons[7]?.value ?? 0) > 0.1;
-    const firing  = isDown('Space') || padFire;
+    const tcFire  = this.tc ? (this.tc.fireToggle || this.tc.fireTapHeld) : false;
+    const firing  = isDown('Space') || padFire || tcFire;
     if (firing && this.fireCD <= 0) {
       this.fire();
       this.fireCD = FIRE_CONFIG[this.getCurrentWeaponType()].cooldown;
@@ -505,8 +519,8 @@ export default class GameScene extends Phaser.Scene {
 
     const rx = pad ? (pad.axes[2]?.getValue() ?? 0) : 0;
     const ry = pad ? (pad.axes[3]?.getValue() ?? 0) : 0;
-    const sx = Math.abs(rx) > DEAD ? rx : 0;
-    const sy = Math.abs(ry) > DEAD ? ry : 0;
+    const sx = Math.abs(rx) > DEAD ? rx : (this.tc?.rightAxis.x ?? 0);
+    const sy = Math.abs(ry) > DEAD ? ry : (this.tc?.rightAxis.y ?? 0);
 
     const kx = (isDown('KeyJ') ? -1 : 0) + (isDown('KeyL') ? 1 : 0);
     const ky = (isDown('KeyI') ? -1 : 0) + (isDown('KeyK') ? 1 : 0);
