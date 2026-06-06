@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { installKeyboard, justDown } from '../input.js';
 
 const W = 480, H = 270;
+const COL_L = 232; // action column right edge (right-aligned)
+const COL_R = 248; // binding column left edge (left-aligned)
 
 // ControlsScene — launched either from MenuScene (scene.start) or from
 // PauseScene (scene.launch + scene.pause, returnTo:'pause' in data).
@@ -29,6 +31,9 @@ export default class ControlsScene extends Phaser.Scene {
     backBtn.on('pointerout',  () => backBtn.setColor('#5577aa'));
     backBtn.on('pointerdown', () => this.back());
 
+    // Pause PauseScene now that this scene is fully initialised.
+    if (this.returnTo === 'pause') this.scene.pause('PauseScene');
+
     // Seed gamepad edge tracker so the button that opened this screen isn't
     // immediately re-read.
     const pad = this.input.gamepad?.pad1 ?? null;
@@ -38,52 +43,43 @@ export default class ControlsScene extends Phaser.Scene {
 
   // ── Layout helpers ──────────────────────────────────────────────────────────
 
+  // Action label: right-aligned at COL_L (left column).
   row(y, action, bindFn) {
-    this.add.text(28, y, action, {
+    this.add.text(COL_L, y, action, {
       fontFamily: 'Arial', fontSize: '9px', color: '#b8d4ee',
-    }).setOrigin(0, 0.5).setDepth(41);
+    }).setOrigin(1, 0.5).setDepth(41);
     bindFn(y);
   }
 
-  // Plain right-aligned text binding.
+  // Binding: left-aligned at COL_R (right column).
   bindText(y, label, color = '#ffd07a') {
-    this.add.text(452, y, label, {
+    this.add.text(COL_R, y, label, {
       fontFamily: 'Arial', fontSize: '9px', color,
-    }).setOrigin(1, 0.5).setDepth(41);
+    }).setOrigin(0, 0.5).setDepth(41);
   }
 
-  // Pill tag (RT, LB, RB, Start, Select …)
-  bindTag(y, label, accentColor = 0x445566) {
-    const tw = label.length * 5.2 + 10;
-    const x  = 452 - tw;
-    const g  = this.add.graphics().setDepth(40);
-    g.fillStyle(0x0d1a2a, 0.9);
-    g.fillRoundedRect(x, y - 7, tw, 13, 3);
-    g.lineStyle(1, accentColor, 0.7);
-    g.strokeRoundedRect(x, y - 7, tw, 13, 3);
-    this.add.text(x + tw / 2, y, label, {
-      fontFamily: 'Arial', fontSize: '8px', color: '#ccddf0',
-    }).setOrigin(0.5, 0.5).setDepth(41);
+  // For RT/LB/RB/Start/Select — plain text, no pill.
+  bindTag(y, label) {
+    this.bindText(y, label, '#ffd07a');
   }
 
-  // Colored face button (A/B/X/Y circle).
+  // Colored face button (A/B/X/Y circle), placed at binding column start.
   faceBtn(cx, y, letter, fillColor) {
     const g = this.add.graphics().setDepth(41);
     g.fillStyle(fillColor, 1);
-    g.fillCircle(cx, y, 6);
+    g.fillCircle(cx, y, 4);
     this.add.text(cx, y, letter, {
-      fontFamily: 'Arial', fontSize: '7px', color: '#ffffff', fontStyle: 'bold',
+      fontFamily: 'Arial', fontSize: '6px', color: '#ffffff', fontStyle: 'bold',
     }).setOrigin(0.5, 0.5).setDepth(42);
   }
 
   sectionHeader(y, label) {
-    // Use fillRect instead of path-based stroke — more compatible with Phaser 4.
     const g = this.add.graphics().setDepth(40);
     g.fillStyle(0x223344, 0.9);
     g.fillRect(28, y + 5, W - 56, 1);
-    this.add.text(28, y, label, {
+    this.add.text(W / 2, y, label, {
       fontFamily: 'Arial', fontSize: '8px', color: '#445e78', fontStyle: 'bold',
-    }).setOrigin(0, 0.5).setDepth(41);
+    }).setOrigin(0.5, 0.5).setDepth(41);
   }
 
   // ── Content ─────────────────────────────────────────────────────────────────
@@ -92,17 +88,17 @@ export default class ControlsScene extends Phaser.Scene {
     const RH = 11; // row height
 
     // ── MANETTE ─────────────────────────────────────────────────────────────
-    this.sectionHeader(30, '── MANETTE');
+    this.sectionHeader(30, '── MANETTE ──');
 
     let y = 46;
     this.row(y, 'Déplacement vaisseau', y => this.bindText(y, 'Stick G · Croix'));
 
     y += RH;
-    this.row(y, 'Tir', y => this.bindTag(y, 'RT', 0xff7733));
+    this.row(y, 'Tir', y => this.bindTag(y, 'RT'));
 
     y += RH;
     this.row(y, 'Invoquer un clone', y => {
-      this.faceBtn(446, y, 'Y', 0xfdd835);
+      this.faceBtn(COL_R + 5, y, 'Y', 0xfdd835);
     });
 
     y += RH;
@@ -122,16 +118,16 @@ export default class ControlsScene extends Phaser.Scene {
 
     y += RH;
     this.row(y, 'Valider / Retour (fins de partie)', y => {
-      this.faceBtn(436, y, 'A', 0x4caf50);
-      this.add.text(444, y, '/', {
+      this.faceBtn(COL_R + 5,  y, 'A', 0x4caf50);
+      this.add.text(COL_R + 14, y, '/', {
         fontFamily: 'Arial', fontSize: '8px', color: '#556677',
       }).setOrigin(0.5, 0.5).setDepth(41);
-      this.faceBtn(452, y, 'B', 0xe53935);
+      this.faceBtn(COL_R + 23, y, 'B', 0xe53935);
     });
 
     // ── CLAVIER ─────────────────────────────────────────────────────────────
     y += RH + 4;
-    this.sectionHeader(y, '── CLAVIER');
+    this.sectionHeader(y, '── CLAVIER ──');
 
     y += 14;
     this.row(y, 'Déplacement vaisseau', y => this.bindText(y, 'ZQSD · WASD · ↑↓←→'));
@@ -159,8 +155,8 @@ export default class ControlsScene extends Phaser.Scene {
 
   back() {
     if (this.returnTo === 'pause') {
-      this.scene.stop();
       this.scene.resume('PauseScene');
+      this.scene.stop();
     } else {
       this.scene.start('MenuScene');
     }

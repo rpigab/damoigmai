@@ -51,8 +51,8 @@ export default class PauseScene extends Phaser.Scene {
     this._padStart = true; this._padA = false; this._padB = false;
     justDown('Escape'); // prime so the opening press isn't re-read
 
-    // Re-prime inputs when returning from ControlsScene.
-    this.events.on('wake', () => {
+    // Re-prime inputs when ControlsScene stops and resumes this scene.
+    this.events.on('resume', () => {
       justDown('Escape');
       this._padStart = true;
       this._padB = true;
@@ -74,7 +74,7 @@ export default class PauseScene extends Phaser.Scene {
     if (action === 'resume') this.resume();
     else if (action === 'controls') {
       this.scene.launch('ControlsScene', { returnTo: 'pause' });
-      this.scene.pause();
+      // ControlsScene.create() pauses PauseScene once it's ready.
     } else this.toMenu();
   }
 
