@@ -3,8 +3,29 @@ import { generateAllSprites } from '../sprites.js';
 import { generateWorldTextures } from '../backgrounds.js';
 import { SHIPS } from '../shipState.js';
 
-const BG_CDN = 'https://rpigab.github.io/pixelagen/backgrounds/space/';
-const SPACE_LAYERS = ['space_layer0', 'space_layer1', 'space_layer2', 'space_layer3'];
+const BG_CDN = 'https://rpigab.github.io/pixelagen/backgrounds/';
+
+// CDN background layers per world. Key → texture key used in WORLD_CFGS.
+const BG_LAYERS = [
+  ['space/space_layer0',     'bg_space_layer0'],
+  ['space/space_layer1',     'bg_space_layer1'],
+  ['space/space_layer2',     'bg_space_layer2'],
+  ['space/space_layer3',     'bg_space_layer3'],
+  ['desert/desert_layer0',   'bg_desert_layer0'],
+  ['desert/desert_layer1',   'bg_desert_layer1'],
+  ['ocean/ocean_layer0',     'bg_ocean_layer0'],
+  ['ocean/ocean_layer1',     'bg_ocean_layer1'],
+  ['snow/snow_layer0',       'bg_snow_layer0'],
+  ['snow/snow_layer1',       'bg_snow_layer1'],
+  ['forest/forest_layer0',   'bg_forest_layer0'],
+  ['forest/forest_layer1',   'bg_forest_layer1'],
+  ['city/city_layer0',       'bg_city_layer0'],
+  ['city/city_layer1',       'bg_city_layer1'],
+  ['techno/techno_layer0',   'bg_techno_layer0'],
+  ['techno/techno_layer1',   'bg_techno_layer1'],
+  ['abstract/abstract_layer0', 'bg_abstract_layer0'],
+  ['abstract/abstract_layer1', 'bg_abstract_layer1'],
+];
 
 export default class BootScene extends Phaser.Scene {
   constructor() { super('BootScene'); }
@@ -16,9 +37,9 @@ export default class BootScene extends Phaser.Scene {
     // Ship sprites — CDN; failures handled gracefully in ShipSelectScene / GameScene.
     SHIPS.forEach(ship => this.load.image(ship.key, ship.url));
 
-    // ESPACE background layers — CDN (160×90 PNG, displayed at ×3 via tileScale).
+    // Background layers — CDN PNGs, tileSprite at 1px/art-px density.
     // Falls back to Phaser missing-texture if CDN unreachable.
-    SPACE_LAYERS.forEach(key => this.load.image(`bg_${key}`, `${BG_CDN}${key}.png`));
+    BG_LAYERS.forEach(([path, key]) => this.load.image(key, `${BG_CDN}${path}.png`));
   }
 
   create() {

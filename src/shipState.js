@@ -10,8 +10,8 @@ export const SHIPS = [
   { key: 'ship_nighthawk_16', name: 'NIGHTHAWK 16C',url: 'https://rpigab.github.io/pixelagen/sprites/16colors/64x64/nighthawk.png' },
 ];
 
-// Index into SHIPS; null = use procedural 'player' sprite.
-let selectedIndex = null;
+// Index into SHIPS; defaults to 0 (MARAUDER).
+let selectedIndex = 0;
 
 export function getSelectedShip() {
   if (selectedIndex === null) return null;
