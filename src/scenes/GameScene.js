@@ -386,8 +386,8 @@ export default class GameScene extends Phaser.Scene {
       if (this.scale.isFullscreen) this.scale.stopFullscreen();
       else this.scale.startFullscreen();
     }
-    if ((lbNow && !this._padLB) || this.tc?.justLB) this.trySacrificeClones('life');
-    if ((rbNow && !this._padRB) || this.tc?.justRB) this.trySacrificeClones('bomb');
+    if ((lbNow && !this._padLB) || this.tc?.justLB || justDown('ShiftLeft'))  this.trySacrificeClones('life');
+    if ((rbNow && !this._padRB) || this.tc?.justRB || justDown('ShiftRight')) this.trySacrificeClones('bomb');
     this.padCloneBtn  = yNow;
     this._padSelect   = selectNow;
     this._padLB       = lbNow;

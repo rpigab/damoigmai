@@ -146,6 +146,12 @@ export default class ControlsScene extends Phaser.Scene {
     this.row(y, 'Déplacer le clone', y => this.bindText(y, 'I J K L'));
 
     y += RH;
+    this.row(y, 'Sacrifier 2 clones → +Vie', y => this.bindText(y, 'Shift G'));
+
+    y += RH;
+    this.row(y, 'Sacrifier 2 clones → Bombe', y => this.bindText(y, 'Shift D'));
+
+    y += RH;
     this.row(y, 'Pause', y => this.bindText(y, 'Échap'));
   }
 
