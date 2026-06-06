@@ -31,8 +31,14 @@ export default class ControlsScene extends Phaser.Scene {
     backBtn.on('pointerout',  () => backBtn.setColor('#5577aa'));
     backBtn.on('pointerdown', () => this.back());
 
-    // Pause PauseScene now that this scene is fully initialised.
-    if (this.returnTo === 'pause') this.scene.pause('PauseScene');
+    // Launched as an overlay on top of PauseScene. scene.pause() only halts the
+    // update loop, NOT rendering — and ControlsScene sits *below* PauseScene in
+    // the scene list, so without bringToTop() the PauseScene overlay keeps
+    // drawing over us and ControlsScene stays invisible (the "freeze" symptom).
+    if (this.returnTo === 'pause') {
+      this.scene.bringToTop();
+      this.scene.pause('PauseScene');
+    }
 
     // Seed gamepad edge tracker so the button that opened this screen isn't
     // immediately re-read.
