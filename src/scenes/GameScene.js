@@ -704,10 +704,11 @@ export default class GameScene extends Phaser.Scene {
     const p = this.powerups.create(x, y, `pu_${type}`);
     if (!p) return;
     p.setDepth(11);
+    p.setScale(0.75);
     p.powerupType = type;
     p.setVelocity(-55, Phaser.Math.Between(-25, 25));
     this.tweens.add({ targets: p, y: y + 12, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.tweens.add({ targets: p, scaleX: 1.15, scaleY: 1.15, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: p, scaleX: 0.86, scaleY: 0.86, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
   }
 
   onPickupPowerup(player, powerup) {

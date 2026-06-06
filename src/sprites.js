@@ -169,42 +169,11 @@ function makeStarTexture(scene) {
 }
 
 // ---------------------------------------------------------------------------
-// Powerup sprites — 8x8 orbs with distinct inner pattern
-
-// Spread powerup — cyan orb, 3 radiating dots inside
-const PU_SPREAD_PAL = [0, 0x006688, 0x00aacc, 0x55eeff, 0xffffff];
-const PU_SPREAD_PIX = [
-  [0,0,1,2,2,1,0,0],
-  [0,1,2,3,3,2,1,0],
-  [1,2,3,4,3,3,2,1],
-  [2,3,3,3,4,3,3,2],
-  [2,3,4,3,3,3,3,2],
-  [1,2,3,3,3,4,2,1],
-  [0,1,2,3,3,2,1,0],
-  [0,0,1,2,2,1,0,0],
-];
-
-// Plasma powerup — orange/yellow orb, bright core
-const PU_PLASMA_PAL = [0, 0x882200, 0xcc4400, 0xff9900, 0xffee44];
-const PU_PLASMA_PIX = [
-  [0,0,1,2,2,1,0,0],
-  [0,1,2,2,2,2,1,0],
-  [1,2,2,3,3,2,2,1],
-  [2,2,3,4,4,3,2,2],
-  [2,2,3,4,4,3,2,2],
-  [1,2,2,3,3,2,2,1],
-  [0,1,2,2,2,2,1,0],
-  [0,0,1,2,2,1,0,0],
-];
-
-// ---------------------------------------------------------------------------
 export function generateAllSprites(scene) {
   drawPixels(scene, 'player',  PLAYER_PIX,  PLAYER_PAL);
   drawPixels(scene, 'enemy1',  ENEMY1_PIX,  ENEMY1_PAL);
   drawPixels(scene, 'enemy2',  ENEMY2_PIX,  ENEMY2_PAL);
   drawPixels(scene, 'enemy3',  ENEMY3_PIX,  ENEMY3_PAL);
-  drawPixels(scene, 'pu_spread', PU_SPREAD_PIX, PU_SPREAD_PAL);
-  drawPixels(scene, 'pu_plasma', PU_PLASMA_PIX, PU_PLASMA_PAL);
   makeBullet1(scene);
   makeBullet2(scene);
   makeBullet3(scene);

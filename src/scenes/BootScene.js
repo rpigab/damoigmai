@@ -3,9 +3,6 @@ import { generateAllSprites } from '../sprites.js';
 import { generateWorldTextures } from '../backgrounds.js';
 import { SHIPS } from '../shipState.js';
 
-const BG_CDN = 'https://rpigab.github.io/pixelagen/backgrounds/';
-
-// CDN background layers per world. Key → texture key used in WORLD_CFGS.
 const BG_LAYERS = [
   ['space/space_layer0',     'bg_space_layer0'],
   ['space/space_layer1',     'bg_space_layer1'],
@@ -34,12 +31,12 @@ export default class BootScene extends Phaser.Scene {
     generateAllSprites(this);
     generateWorldTextures(this);
 
-    // Ship sprites — CDN; failures handled gracefully in ShipSelectScene / GameScene.
     SHIPS.forEach(ship => this.load.image(ship.key, ship.url));
 
-    // Background layers — CDN PNGs, tileSprite at 1px/art-px density.
-    // Falls back to Phaser missing-texture if CDN unreachable.
-    BG_LAYERS.forEach(([path, key]) => this.load.image(key, `${BG_CDN}${path}.png`));
+    BG_LAYERS.forEach(([path, key]) => this.load.image(key, `assets/backgrounds/${path}.png`));
+
+    this.load.image('pu_spread', 'assets/other/powerup_spread.png');
+    this.load.image('pu_plasma', 'assets/other/powerup_plasma.png');
   }
 
   create() {
