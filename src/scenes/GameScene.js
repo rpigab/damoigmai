@@ -93,6 +93,7 @@ export default class GameScene extends Phaser.Scene {
     this.clones        = [];
     this.cloneGroup    = this.physics.add.group();
     this.padCloneBtn   = false;
+    this.savedCloneOffset = data.cloneOffset ?? { x: 0, y: -34 };
 
     this.input.gamepad.on('connected', (pad) => {
       // Only hide touch controls for a real physical gamepad (has analogue axes).
@@ -111,6 +112,7 @@ export default class GameScene extends Phaser.Scene {
     // Touch controls — only on touch devices; hidden by the 'connected' handler above.
     const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
     this.tc = hasTouch ? createTouchControls(this) : null;
+    if (this.tc && data.fireToggle) this.tc.setFireToggle(true);
 
     // Conserve les clones entre les mondes (mode histoire).
     const carriedClones = Math.min(data.cloneCount ?? 0, 2);
@@ -293,6 +295,7 @@ export default class GameScene extends Phaser.Scene {
     const open = justDown('Escape') || (padStart && !this._padStart) || (this.tc?.justPause ?? false);
     this._padStart = padStart;
     if (open) {
+      this.tc?.clearJust();
       this.player.setVelocity(0, 0);
       this.scene.pause();
       this.scene.launch('PauseScene', { world: this.worldIndex });
@@ -459,7 +462,7 @@ export default class GameScene extends Phaser.Scene {
 
   trySacrificeClones(action) {
     if (this.clones.length < 2) return;
-    const positions = this.clones.map(c => ({ x: c.sprite.x, y: c.sprite.y }));
+    this.savedCloneOffset = { x: this.clones[0].sprite.x - this.player.x, y: this.clones[0].sprite.y - this.player.y };
     this.clones.forEach(c => { this.explodeAt(c.sprite.x, c.sprite.y, false); c.sprite.destroy(); });
     this.clones = [];
     if (action === 'life') {
@@ -500,7 +503,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   computeCloneOffset(index) {
-    if (index === 1) return { x: 0, y: -34 };
+    if (index === 1) return { ...this.savedCloneOffset };
     const b = this.clones[0];
     const bx = b.sprite.x - this.player.x, by = b.sprite.y - this.player.y;
     const cos60 = 0.5, sin60 = Math.sqrt(3) / 2;
@@ -843,7 +846,7 @@ export default class GameScene extends Phaser.Scene {
 
     if (next < 8) {
       this.time.delayedCall(3200, () => {
-        this.scene.start('GameScene', { mode: 'story', world: next, score: this.score, lives: this.lives, weaponStack: this.weaponStack, cloneCount: this.clones.length });
+        this.scene.start('GameScene', { mode: 'story', world: next, score: this.score, lives: this.lives, weaponStack: this.weaponStack, cloneCount: this.clones.length, cloneOffset: this.savedCloneOffset, fireToggle: this.tc?.fireToggle ?? false });
       });
     } else {
       this.triggerVictory();

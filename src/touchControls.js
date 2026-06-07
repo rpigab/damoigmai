@@ -140,6 +140,8 @@ export function createTouchControls(scene) {
     s.justClone = s.justPause = s.justLB = s.justRB = s.justFullscreen = false;
   };
 
+  s.setFireToggle = (val) => { s.fireToggle = val; drawFA(); };
+
   s.setVisible = (v) => { objs.forEach(o => o.setVisible(v)); if (v) { drawKnobs(); drawFA(); } };
 
   s.destroy = () => {
