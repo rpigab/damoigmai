@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { installKeyboard, justDown } from '../input.js';
 import { pauseMusic, resumeMusic, stopMusic } from '../music.js';
+import { addFullscreenBtn } from '../touchControls.js';
 
 const W = 480, H = 270;
 
@@ -42,6 +43,8 @@ export default class PauseScene extends Phaser.Scene {
     this.add.text(W / 2, H / 2 + 60, 'la progression est perdue en quittant', {
       fontFamily: 'Arial', fontSize: '9px', color: '#667788',
     }).setOrigin(0.5).setDepth(41);
+
+    addFullscreenBtn(this, W - 14, 14, 42);
 
     pauseMusic();
 

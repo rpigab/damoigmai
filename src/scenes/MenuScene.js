@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { createWorldBackground } from '../backgrounds.js';
 import { startMusic } from '../music.js';
 import { getSelectedShip } from '../shipState.js';
+import { addFullscreenBtn } from '../touchControls.js';
 
 const W = 480, H = 270;
 
@@ -56,6 +57,8 @@ export default class MenuScene extends Phaser.Scene {
     this._padDown   = (pad?.buttons[13]?.pressed ?? false) || (pad?.axes[1]?.getValue() ?? 0) > 0.5;
     this._padA      = pad?.buttons[0]?.pressed ?? false;
     this._padSelect = pad?.buttons[8]?.pressed ?? false;
+
+    addFullscreenBtn(this, W - 14, 14);
 
     this.refreshMenu();
   }

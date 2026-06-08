@@ -31,6 +31,29 @@ const TOP = [
 
 const D = 50; // base depth
 
+// ── Fullscreen button (for menu scenes) ──────────────────────────────────────
+// Adds a touch-only fullscreen toggle at the given corner position.
+export function addFullscreenBtn(scene, cx, cy, depth = 10) {
+  const hasTouch = localStorage.getItem('tactileControl') === 'true'
+    || ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  if (!hasTouch) return;
+
+  const g = scene.add.graphics().setDepth(depth);
+  const h = 6, q = 3;
+  g.lineStyle(1.5, 0xaabbdd, 0.82);
+  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const bx = cx + sx * h, by = cy + sy * h;
+    g.lineBetween(bx, by - sy * q, bx, by);
+    g.lineBetween(bx - sx * q, by, bx, by);
+  }
+
+  scene.add.zone(cx, cy, 30, 30).setInteractive({ useHandCursor: true }).setDepth(depth)
+    .on('pointerdown', () => {
+      if (scene.scale.isFullscreen) scene.scale.stopFullscreen();
+      else scene.scale.startFullscreen();
+    });
+}
+
 // ── Factory ───────────────────────────────────────────────────────────────────
 export function createTouchControls(scene) {
   scene.input.addPointer(3);
