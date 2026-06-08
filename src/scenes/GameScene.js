@@ -26,6 +26,8 @@ const AMMO = { spread: 60, plasma: 25 };
 
 const WEAPON_COLORS = { gatling: 0xddcc00, spread: 0x00aadd, plasma: 0xff6600 };
 
+const livesStr = (n) => n >= 6 ? `♥ ${n}` : ('♥ ').repeat(Math.max(0, n)).trim();
+
 // ---- Highscores (endless mode) ----
 function loadScores() {
   try { return JSON.parse(localStorage.getItem('damoigmai_hs') || '[]'); }
@@ -133,7 +135,7 @@ export default class GameScene extends Phaser.Scene {
     // HUD
     const hs = { fontFamily: 'Arial', fontSize: '10px', color: '#ffffff' };
     this.scoreTxt = this.add.text(W - 6, 6, `${this.score}`, hs).setOrigin(1, 0).setDepth(20);
-    this.livesTxt = this.add.text(6, 6, ('♥ ').repeat(this.lives).trim(), { ...hs, color: '#ff4455' }).setOrigin(0, 0).setDepth(20);
+    this.livesTxt = this.add.text(6, 6, livesStr(this.lives), { ...hs, color: '#ff4455' }).setOrigin(0, 0).setDepth(20);
 
     this.createWeaponHUD();
 
@@ -468,7 +470,7 @@ export default class GameScene extends Phaser.Scene {
     this.clones = [];
     if (action === 'life') {
       this.lives = Math.min(this.lives + 1, 9);
-      this.livesTxt.setText(('♥ ').repeat(this.lives).trim());
+      this.livesTxt.setText(livesStr(this.lives));
       sfx.pickup();
       const popup = this.add.text(this.player.x, this.player.y - 20, '+VIE', {
         fontFamily: 'Arial', fontSize: '10px', color: '#ff88aa',
@@ -745,7 +747,7 @@ export default class GameScene extends Phaser.Scene {
 
   damagePlayer() {
     this.lives--;
-    this.livesTxt.setText(('♥ ').repeat(Math.max(0, this.lives)).trim());
+    this.livesTxt.setText(livesStr(this.lives));
     this.invTimer = 2200;
     if (this.lives <= 0) { this.triggerGameOver(); return; }
     sfx.hit();

@@ -12,21 +12,21 @@
 import Phaser from 'phaser';
 
 // ── Layout ─────────────────────────────────────────────────────────────────────
-const LS = { cx: 72,  cy: 210, r: 42, kR: 18 }; // left stick (ship)  — +40%
-const RS = { cx: 390, cy: 210, r: 39, kR: 17 }; // right stick (clone) — +40%
+const LS = { cx: 72,  cy: 210, r: 42, kR: 18 }; // left stick (ship)
+const RS = { cx: 390, cy: 210, r: 39, kR: 17 }; // right stick (clone)
 const ML = LS.r - LS.kR + 1; // 25
 const MR = RS.r - RS.kR + 1; // 23
 
-const FT = { cx: 455, cy: 242, r: 16 }; // fire-tap (hold = continuous)
-const FA = { cx: 455, cy: 183, r: 12 }; // auto-fire toggle
+const FT = { cx: 455, cy: 205, r: 16 }; // single-fire (tap/hold) — above AUTO
+const FA = { cx: 455, cy: 237, r: 12 }; // auto-fire toggle
 
-// Top action buttons — fullscreen now in centre, clone at top-right
+// Top buttons — moved inward to clear lives HUD (left) and score HUD (right).
+// Fullscreen removed from game (belongs on menu only).
 const TOP = [
-  { cx: 60,  cy: 14, r: 11, key: 'justLB',         label: '+♥'  },
-  { cx: 98,  cy: 14, r: 11, key: 'justRB',         label: '★'   },
-  { cx: 240, cy: 14, r: 11, key: 'justFullscreen', label: '[ ]' },
-  { cx: 416, cy: 14, r: 12, key: 'justClone',      label: 'CLN' },
-  { cx: 456, cy: 14, r: 11, key: 'justPause',      label: '||'  },
+  { cx: 130, cy: 14, r: 13, key: 'justLB',    icon: 'lb'    }, // sacrifice clone → +life
+  { cx: 167, cy: 14, r: 13, key: 'justRB',    icon: 'rb'    }, // screen bomb
+  { cx: 315, cy: 14, r: 13, key: 'justPause', icon: 'pause' },
+  { cx: 352, cy: 14, r: 13, key: 'justClone', icon: 'clone' },
 ];
 
 const D = 50; // base depth
@@ -44,7 +44,7 @@ export function createTouchControls(scene) {
     justPause:      false,
     justLB:         false,
     justRB:         false,
-    justFullscreen: false,
+    justFullscreen: false, // kept for API compat; no button shown in-game
     _lPtr: -1, _rPtr: -1, _fPtr: -1,
   };
 
@@ -54,7 +54,7 @@ export function createTouchControls(scene) {
     reg(scene.add.text(x, y, label, { fontFamily: 'Arial', fontSize: `${size}px`, color })
       .setOrigin(0.5).setDepth(D + 1));
 
-  // ── Static bases (fire-tap only — sticks show knob only, no outer ring) ──
+  // ── Fire-tap base ─────────────────────────────────────────────────────────
   const baseGfx = reg(scene.add.graphics().setDepth(D));
   function drawBases() {
     baseGfx.clear();
@@ -76,7 +76,7 @@ export function createTouchControls(scene) {
   drawFA();
   txt(FA.cx, FA.cy, 'AUTO', 5, '#6688aa');
 
-  // ── Knobs (dynamic) ──────────────────────────────────────────────────────
+  // ── Stick knobs (dynamic) ────────────────────────────────────────────────
   const knobGfx = reg(scene.add.graphics().setDepth(D + 1));
   function drawKnobs() {
     knobGfx.clear();
@@ -89,14 +89,51 @@ export function createTouchControls(scene) {
   }
   drawKnobs();
 
-  // ── Top action buttons ───────────────────────────────────────────────────
+  // ── Top action buttons (icon-only, no background rectangle) ──────────────
   for (const btn of TOP) {
     const g = reg(scene.add.graphics().setDepth(D));
-    g.fillStyle(0x0a1825, 0.78);
-    g.fillRoundedRect(btn.cx - btn.r, btn.cy - btn.r, btn.r * 2, btn.r * 2, 3);
-    g.lineStyle(1, 0x334455, 0.65);
-    g.strokeRoundedRect(btn.cx - btn.r, btn.cy - btn.r, btn.r * 2, btn.r * 2, 3);
-    txt(btn.cx, btn.cy, btn.label, 6, '#7799aa');
+    const { cx, cy } = btn;
+
+    if (btn.icon === 'pause') {
+      // Two vertical bars
+      g.fillStyle(0xffffff, 0.85);
+      g.fillRect(cx - 5, cy - 7, 4, 14);
+      g.fillRect(cx + 1, cy - 7, 4, 14);
+
+    } else if (btn.icon === 'lb') {
+      // "+" sign at top-left of button
+      g.fillStyle(0xffffff, 0.9);
+      g.fillRect(cx - 11, cy - 7, 6, 2);
+      g.fillRect(cx - 9,  cy - 9, 2, 6);
+      // Heart: two lobes + bottom point
+      g.fillStyle(0xff3344, 0.95);
+      g.fillCircle(cx - 1, cy - 2, 4);
+      g.fillCircle(cx + 4, cy - 2, 4);
+      g.fillTriangle(cx - 5, cy - 2, cx + 8, cy - 2, cx + 1.5, cy + 8);
+
+    } else if (btn.icon === 'rb') {
+      // Bomb body
+      g.fillStyle(0x9999bb, 0.9);
+      g.fillCircle(cx, cy + 2, 7);
+      // Fuse
+      g.lineStyle(1.5, 0xccccdd, 0.9);
+      g.lineBetween(cx + 4, cy - 3, cx + 9, cy - 8);
+      // Spark
+      g.fillStyle(0xffee33, 1);
+      g.fillCircle(cx + 9, cy - 8, 2.5);
+
+    } else if (btn.icon === 'clone') {
+      // Ship 1: solid triangle pointing right
+      g.fillStyle(0x88aaff, 0.9);
+      g.fillTriangle(cx - 8, cy - 5, cx - 8, cy + 5, cx + 1, cy);
+      // Ship 2: ghost copy slightly offset (outline only = "dashed" feel)
+      g.lineStyle(1.2, 0x88aaff, 0.5);
+      g.strokeTriangle(cx - 5, cy - 3, cx - 5, cy + 7, cx + 4, cy + 2);
+      // "+"
+      g.fillStyle(0xffffff, 0.85);
+      g.fillRect(cx + 4, cy - 1, 6, 2);
+      g.fillRect(cx + 6, cy - 3, 2, 6);
+    }
   }
 
   // ── Pointer handlers ─────────────────────────────────────────────────────
