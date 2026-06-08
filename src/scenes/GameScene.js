@@ -299,6 +299,15 @@ export default class GameScene extends Phaser.Scene {
     this.bgLayers.forEach(l => { l.sprite.tilePositionX += l.speedX; });
 
     if (this.worldDone) {
+      // Grace window: the "monde terminé" banner is up but the player can still
+      // fly around to scoop the boss's powerup drops before the next world.
+      if (this.worldClearGrace) {
+        this.handleMovement();
+        this.updateClones(delta);
+        this.cleanup();
+        this.tc?.clearJust();
+        return;
+      }
       this.player.setVelocity(0, 0);
       if (this.victoryReady) this.handleVictoryInput();
       return;
@@ -1117,6 +1126,7 @@ export default class GameScene extends Phaser.Scene {
   // -------------------------------------------------------------------------
   triggerWorldComplete() {
     this.worldDone = true;
+    this.worldClearGrace = true; // keep the ship flyable to grab boss powerups
     this.hideBossBar();
     const next = this.worldIndex + 1;
 
@@ -1129,10 +1139,11 @@ export default class GameScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(31);
 
     if (next < WORLD_COUNT) {
-      this.time.delayedCall(3200, () => {
+      this.time.delayedCall(3000, () => {
         this.scene.start('GameScene', { mode: 'story', world: next, score: this.score, lives: this.lives, weaponStack: this.weaponStack, cloneCount: this.clones.length, cloneOffset: this.savedCloneOffset, fireToggle: this.tc?.fireToggle ?? false });
       });
     } else {
+      this.worldClearGrace = false; // freeze the ship for the victory screen
       this.triggerVictory();
     }
   }
