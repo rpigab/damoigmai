@@ -5,10 +5,15 @@ import { installKeyboard, isDown, justDown } from '../input.js';
 import { createWorldBackground } from '../backgrounds.js';
 import { getSelectedShip } from '../shipState.js';
 import { createTouchControls } from '../touchControls.js';
+import { bossSpawnConfig } from '../bosses.js';
 
 const W = 480, H = 270;
+const TAU = Math.PI * 2;
 const PLAYER_SPEED   = 180;
 const WAVES_PER_WORLD = 6;
+const WORLD_COUNT     = 8;
+const MIDBOSS_WAVE    = 3;             // local wave that spawns the mid-boss
+const BOSS_WAVE       = WAVES_PER_WORLD; // local wave that spawns the world boss
 
 const ENEMY_DEF = {
   1: { hp: 1, speed: 160, pts: 100, shootMs: 3500 },
@@ -138,8 +143,42 @@ export default class GameScene extends Phaser.Scene {
     this.livesTxt = this.add.text(6, 6, livesStr(this.lives), { ...hs, color: '#ff4455' }).setOrigin(0, 0).setDepth(20);
 
     this.createWeaponHUD();
+    this.createBossBar();
 
     this.time.delayedCall(800, () => this.startWave());
+  }
+
+  // -------------------------------------------------------------------------
+  // Boss health bar — centred strip at the top, hidden until a boss is active.
+  createBossBar() {
+    const y = 14, bw = 300;
+    this.bossBarBg    = this.add.rectangle(W / 2, y, bw + 4, 10, 0x000000, 0.6).setDepth(25);
+    this.bossBarFill  = this.add.rectangle(W / 2 - bw / 2, y, bw, 6, 0xff3344)
+      .setOrigin(0, 0.5).setDepth(26);
+    this.bossBarFrame = this.add.rectangle(W / 2, y, bw + 4, 10)
+      .setStrokeStyle(1, 0xffffff, 0.5).setDepth(26);
+    this.bossNameTxt  = this.add.text(W / 2, 4, '', {
+      fontFamily: 'Arial', fontSize: '7px', color: '#ffdddd',
+    }).setOrigin(0.5, 0).setDepth(26);
+    this._bossBarW = bw;
+    this.hideBossBar();
+  }
+
+  showBossBar(boss, name) {
+    this.bossNameTxt.setText(name);
+    [this.bossBarBg, this.bossBarFill, this.bossBarFrame, this.bossNameTxt].forEach(o => o.setVisible(true));
+    this.updateBossBar(boss);
+  }
+
+  updateBossBar(boss) {
+    if (!this.bossBarFill.visible) return;
+    const ratio = Phaser.Math.Clamp(boss.hp / boss.maxHp, 0, 1);
+    const col = ratio > 0.5 ? 0xff3344 : ratio > 0.25 ? 0xff7711 : 0xffcc22;
+    this.bossBarFill.setSize(Math.max(1, this._bossBarW * ratio), 6).setFillStyle(col);
+  }
+
+  hideBossBar() {
+    [this.bossBarBg, this.bossBarFill, this.bossBarFrame, this.bossNameTxt].forEach(o => o.setVisible(false));
   }
 
   // -------------------------------------------------------------------------
@@ -276,6 +315,7 @@ export default class GameScene extends Phaser.Scene {
     this.updateClones(delta);
     this.handleFire(delta);
     this.updateEnemies(time, delta);
+    this.updateBosses(time, delta);
     this.tickInvincibility(delta);
     this.cleanup();
 
@@ -479,10 +519,18 @@ export default class GameScene extends Phaser.Scene {
     } else {
       this.enemies.getChildren().slice().forEach(e => {
         if (!e.active) return;
+        if (e.isBoss) {
+          e.hp -= 20;
+          this.flashEnemy(e);
+          this.updateBossBar(e);
+          if (e.hp <= 0) this.onBossDefeated(e);
+          return;
+        }
         this.trackGroupKill(e);
-        this.explodeAt(e.x, e.y, e.enemyType >= 2);
-        e.enemyType >= 2 ? sfx.explosion() : sfx.smallExplosion();
-        this.score += ENEMY_DEF[e.enemyType].pts;
+        const large = this.isBig(e);
+        this.explodeAt(e.x, e.y, large);
+        large ? sfx.explosion() : sfx.smallExplosion();
+        this.score += this.enemyPoints(e);
         e.destroy();
       });
       this.scoreTxt.setText(`${this.score}`);
@@ -570,9 +618,10 @@ export default class GameScene extends Phaser.Scene {
     const schedule  = this.buildWaveSchedule();
     const lastDelay = schedule.reduce((m, s) => Math.max(m, s.delay), 0);
 
-    schedule.forEach(({ type, delay, groupId }) => {
+    schedule.forEach(({ type, delay, groupId, boss }) => {
       this.time.delayedCall(delay, () => {
         if (this.dead) return;
+        if (boss) { this.spawnBoss(boss.world, boss.tier); return; }
         const e = this.spawnEnemy(type);
         if (groupId !== undefined) e.groupId = groupId;
       });
@@ -581,7 +630,23 @@ export default class GameScene extends Phaser.Scene {
     this.time.delayedCall(lastDelay + 1000, () => { this.waveCanEnd = true; });
   }
 
+  // Local wave index within the current world (1..WAVES_PER_WORLD) and which
+  // boss roster to draw from. Endless mode cycles through every world's bosses.
+  waveContext() {
+    if (this.mode === 'story') {
+      return { local: this.wave - this.worldIndex * WAVES_PER_WORLD, bossWorld: this.worldIndex };
+    }
+    return {
+      local: ((this.wave - 1) % WAVES_PER_WORLD) + 1,
+      bossWorld: Math.floor((this.wave - 1) / WAVES_PER_WORLD) % WORLD_COUNT,
+    };
+  }
+
   buildWaveSchedule() {
+    const { local, bossWorld } = this.waveContext();
+    if (local === MIDBOSS_WAVE) return this.buildBossWaveSchedule(bossWorld, 'mid');
+    if (local === BOSS_WAVE)    return this.buildBossWaveSchedule(bossWorld, 'boss');
+
     const w = this.wave;
     const schedule = [];
     let t = 300;
@@ -613,6 +678,205 @@ export default class GameScene extends Phaser.Scene {
     return schedule;
   }
 
+  // Mid-boss waves bring a small escort; boss waves are the boss alone.
+  buildBossWaveSchedule(world, tier) {
+    const schedule = [];
+    if (tier === 'mid') {
+      let t = 300;
+      for (let i = 0; i < 3; i++) { schedule.push({ type: 1, delay: t }); t += 350; }
+      schedule.push({ boss: { world, tier }, delay: t + 400 });
+    } else {
+      schedule.push({ boss: { world, tier }, delay: 600 });
+    }
+    return schedule;
+  }
+
+  // -------------------------------------------------------------------------
+  spawnBoss(world, tier) {
+    const cfg = bossSpawnConfig(world, tier);
+    const startX = W + (cfg.gridW * 3) / 2 + 8;
+    const b = this.enemies.create(startX, H / 2, cfg.key).setDepth(13);
+
+    b.isBoss      = true;
+    b.bossDef     = cfg;
+    b.hp          = cfg.hp;
+    b.maxHp       = cfg.hp;
+    b.pts         = cfg.pts;
+    b.bulletTint  = cfg.tint;
+    b.stationX    = cfg.stationX;
+    b.baseY       = H / 2;
+    b.t           = 0;
+    b.spinPhase   = 0;
+    b.entering    = true;
+    b.enraged     = false;
+    b.attackIndex = 0;
+    b.attackTimer = 1100;
+    b.setVelocity(0, 0);
+    // Forgiving hitbox — ~64% of the art, centred on the hull.
+    b.body.setSize(b.width * 0.64, b.height * 0.64, true);
+
+    this.showBossBar(b, cfg.name);
+    sfx.bossWarn();
+
+    const banner = this.add.text(W / 2, H / 2, `⚠  ${cfg.name}  ⚠`, {
+      fontFamily: 'Arial', fontSize: '18px', color: '#ff4455',
+    }).setOrigin(0.5).setDepth(31);
+    this.tweens.add({ targets: banner, alpha: 0, scaleX: 1.6, scaleY: 1.6, duration: 1400, onComplete: () => banner.destroy() });
+    return b;
+  }
+
+  updateBosses(time, delta) {
+    const dt = delta / 1000;
+    if (dt <= 0) return;
+
+    this.enemies.getChildren().forEach(b => {
+      if (!b.active || !b.isBoss) return;
+      b.t += delta;
+
+      // Resolve the boss's target position this frame and move it there
+      // directly. (Driving via velocity fights Arcade's fixed timestep: on
+      // frames where the body steps 0 or 2× it overshoots, then snaps back,
+      // making the boss vibrate between two positions. Setting the transform
+      // directly keeps the body — and all overlaps — in sync, jitter-free.)
+      let tx = b.stationX, ty = b.baseY;
+
+      if (b.entering) {
+        tx = b.x - 95 * dt;
+        if (tx <= b.stationX) { tx = b.stationX; b.entering = false; }
+      } else {
+        const m = b.bossDef.move;
+        switch (m.type) {
+          case 'patrol':  tx += Math.sin(b.t * m.wx) * m.ampX; ty += Math.sin(b.t * m.wy) * m.ampY; break;
+          case 'figure8': tx += Math.sin(b.t * m.w)  * m.ampX; ty += Math.sin(b.t * m.w * 2) * m.ampY; break;
+          case 'swoop':   tx -= (Math.sin(b.t * m.w) * 0.5 + 0.5) * m.ampX; ty += Math.sin(b.t * m.w * 1.7) * m.ampY; break;
+          case 'hover':   tx += Math.sin(b.t * 0.0013) * m.ampX; ty += Math.sin(b.t * 0.002) * m.ampY; break;
+          case 'fixed':   default: break;
+        }
+        ty = Phaser.Math.Clamp(ty, b.height * 0.4, H - b.height * 0.4);
+
+        b.attackTimer -= delta;
+        if (b.attackTimer <= 0) {
+          const a = b.bossDef.attacks[b.attackIndex % b.bossDef.attacks.length];
+          b.attackIndex++;
+          this.runBossAttack(b, a);
+          b.attackTimer = a.cooldown * (b.enraged ? 0.62 : 1);
+        }
+
+        if (!b.enraged && b.hp <= b.maxHp * 0.5) {
+          b.enraged = true;
+          sfx.bossEnrage();
+          b.setTint(0xff8888);
+        }
+
+        this.updateBossBar(b);
+      }
+
+      b.setVelocity(0, 0);
+      b.setPosition(tx, ty);
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Bullet pattern execution. All boss bullets are tinted orbs in enemyBullets.
+  emitBossBullet(x, y, angle, speed, tint) {
+    const b = this.enemyBullets.create(x, y, 'enemyOrb');
+    if (!b) return;
+    b.setDepth(13).setTint(tint).setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+    b.body.setSize(6, 6, true);
+  }
+
+  runBossAttack(boss, a) {
+    const tint = boss.bulletTint;
+    const aimAngle = () => Math.atan2(this.player.y - boss.y, this.player.x - boss.x);
+
+    switch (a.type) {
+      case 'aimed': {
+        const base = aimAngle();
+        for (let i = 0; i < a.count; i++) {
+          const off = (i - (a.count - 1) / 2) * (a.spread ?? 0);
+          this.emitBossBullet(boss.x, boss.y, base + off, a.speed, tint);
+        }
+        sfx.enemyShoot();
+        break;
+      }
+      case 'fan': {
+        const center = a.aim ? aimAngle() : Math.PI;
+        for (let i = 0; i < a.count; i++) {
+          const off = a.count === 1 ? 0 : (i / (a.count - 1) - 0.5) * a.arc;
+          this.emitBossBullet(boss.x, boss.y, center + off, a.speed, tint);
+        }
+        sfx.enemyShoot();
+        break;
+      }
+      case 'ring': {
+        boss.spinPhase += 0.13;
+        for (let i = 0; i < a.count; i++) {
+          this.emitBossBullet(boss.x, boss.y, boss.spinPhase + (i / a.count) * TAU, a.speed, tint);
+        }
+        sfx.enemyShoot();
+        break;
+      }
+      case 'spiral': {
+        this.time.addEvent({
+          delay: a.interval, repeat: a.ticks - 1,
+          callback: () => {
+            if (!boss.active) return;
+            for (let arm = 0; arm < a.arms; arm++) {
+              this.emitBossBullet(boss.x, boss.y, boss.spinPhase + (arm / a.arms) * TAU, a.speed, tint);
+            }
+            boss.spinPhase += a.da;
+          },
+        });
+        sfx.enemyShoot();
+        break;
+      }
+      case 'wall': {
+        const top = 18, bottom = H - 18, n = a.count;
+        const step = (bottom - top) / (n - 1);
+        const gapY = this.player.y;
+        for (let i = 0; i < n; i++) {
+          const y = top + i * step;
+          if (Math.abs(y - gapY) < a.gap) continue;
+          this.emitBossBullet(boss.x - 6, y, Math.PI, a.speed, tint);
+        }
+        sfx.enemyShoot();
+        break;
+      }
+    }
+  }
+
+  onBossDefeated(boss) {
+    if (boss._defeated) return; // guard against two killing hits in one frame
+    boss._defeated = true;
+    const px = boss.x, py = boss.y, tier = boss.bossDef.tier;
+    this.score += this.enemyPoints(boss);
+    this.scoreTxt.setText(`${this.score}`);
+    this.hideBossBar();
+    boss.destroy();
+
+    // Clear the screen of danger and reward the player.
+    this.enemyBullets.clear(true, true);
+    sfx.bossDie();
+    const flash = this.add.rectangle(W / 2, H / 2, W, H, 0xffffff, 0.55).setDepth(28);
+    this.tweens.add({ targets: flash, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
+    for (let i = 0; i < 9; i++) {
+      this.time.delayedCall(i * 85, () => {
+        this.explodeAt(px + Phaser.Math.Between(-32, 32), py + Phaser.Math.Between(-28, 28), true);
+        if (i % 2 === 0) sfx.explosion();
+      });
+    }
+    if (tier === 'boss') {
+      this.spawnPowerup(px, py, 'plasma');
+      this.spawnPowerup(px - 14, py + 10, 'spread');
+    } else {
+      this.spawnPowerup(px, py, 'spread');
+    }
+  }
+
+  // Score value / "big explosion" test, both boss-aware.
+  enemyPoints(e) { return e.isBoss ? e.pts : ENEMY_DEF[e.enemyType].pts; }
+  isBig(e)       { return e.isBoss || e.enemyType >= 2; }
+
   spawnEnemy(type) {
     const def = ENEMY_DEF[type];
     const y = Phaser.Math.Between(22, H - 22);
@@ -632,7 +896,7 @@ export default class GameScene extends Phaser.Scene {
   // -------------------------------------------------------------------------
   updateEnemies(time, delta) {
     this.enemies.getChildren().forEach(e => {
-      if (!e.active) return;
+      if (!e.active || e.isBoss) return; // bosses drive their own AI
       if (e.enemyType === 2) {
         e.y = e.startY + Math.sin((time - e.spawnTime) * 0.0025) * 55;
       } else if (e.enemyType === 3 && !e.diving) {
@@ -674,16 +938,20 @@ export default class GameScene extends Phaser.Scene {
     const dmg = bullet.texture.key === 'bullet3' ? 3 : 1;
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
-      this.trackGroupKill(enemy);
-      const large = enemy.enemyType >= 2;
-      this.explodeAt(enemy.x, enemy.y, large);
-      large ? sfx.explosion() : sfx.smallExplosion();
-      this.score += ENEMY_DEF[enemy.enemyType].pts;
-      this.scoreTxt.setText(`${this.score}`);
-      enemy.destroy();
+      if (enemy.isBoss) {
+        this.onBossDefeated(enemy);
+      } else {
+        this.trackGroupKill(enemy);
+        const large = this.isBig(enemy);
+        this.explodeAt(enemy.x, enemy.y, large);
+        large ? sfx.explosion() : sfx.smallExplosion();
+        this.score += this.enemyPoints(enemy);
+        this.scoreTxt.setText(`${this.score}`);
+        enemy.destroy();
+      }
     } else {
-      enemy.setTint(0xff6666);
-      this.time.delayedCall(90, () => { if (enemy.active) enemy.clearTint(); });
+      this.flashEnemy(enemy);
+      if (enemy.isBoss) this.updateBossBar(enemy);
       sfx.hit();
     }
     if (bullet.piercesLeft !== undefined) {
@@ -692,6 +960,16 @@ export default class GameScene extends Phaser.Scene {
     } else {
       bullet.destroy();
     }
+  }
+
+  // Brief white-red hit flash; bosses keep their enrage tint afterwards.
+  flashEnemy(enemy) {
+    enemy.setTint(0xff6666);
+    this.time.delayedCall(90, () => {
+      if (!enemy.active) return;
+      if (enemy.isBoss && enemy.enraged) enemy.setTint(0xff8888);
+      else enemy.clearTint();
+    });
   }
 
   trackGroupKill(enemy) {
@@ -732,13 +1010,14 @@ export default class GameScene extends Phaser.Scene {
 
   // -------------------------------------------------------------------------
   onBulletHitPlayer(player, bullet) {
-    if (this.invTimer > 0) return;
+    if (this.invTimer > 0 || this.worldDone || this.dead) return;
     bullet.destroy();
     this.damagePlayer();
   }
 
   onEnemyHitPlayer(player, enemy) {
     if (this.invTimer > 0) return;
+    if (enemy.isBoss) { this.damagePlayer(); return; } // ramming a boss hurts but won't kill it
     this.explodeAt(enemy.x, enemy.y, false);
     sfx.smallExplosion();
     enemy.destroy();
@@ -768,7 +1047,7 @@ export default class GameScene extends Phaser.Scene {
     const m = 60;
     [this.bullets, this.enemyBullets, this.enemies, this.powerups].forEach(g => {
       g.getChildren().forEach(o => {
-        if (!o.active) return;
+        if (!o.active || o.isBoss) return; // bosses manage their own bounds
         if (o.x < -m || o.x > W + m || o.y < -m || o.y > H + m) o.destroy();
       });
     });
@@ -777,6 +1056,7 @@ export default class GameScene extends Phaser.Scene {
   // -------------------------------------------------------------------------
   triggerGameOver() {
     this.dead = true;
+    this.hideBossBar();
     stopMusic();
     sfx.playerDie();
     this.explodeAt(this.player.x, this.player.y, true);
@@ -837,6 +1117,7 @@ export default class GameScene extends Phaser.Scene {
   // -------------------------------------------------------------------------
   triggerWorldComplete() {
     this.worldDone = true;
+    this.hideBossBar();
     const next = this.worldIndex + 1;
 
     this.add.rectangle(W / 2, H / 2, 320, 80, 0x000000, 0.88).setDepth(30);
@@ -847,7 +1128,7 @@ export default class GameScene extends Phaser.Scene {
       fontFamily: 'Arial', fontSize: '10px', color: '#ffffff',
     }).setOrigin(0.5).setDepth(31);
 
-    if (next < 8) {
+    if (next < WORLD_COUNT) {
       this.time.delayedCall(3200, () => {
         this.scene.start('GameScene', { mode: 'story', world: next, score: this.score, lives: this.lives, weaponStack: this.weaponStack, cloneCount: this.clones.length, cloneOffset: this.savedCloneOffset, fireToggle: this.tc?.fireToggle ?? false });
       });

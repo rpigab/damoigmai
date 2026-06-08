@@ -143,6 +143,16 @@ function makeEnemyBullet(scene) {
   g.destroy();
 }
 
+// Boss bullet — round glowing orb. Drawn in light tones so a per-boss tint
+// (multiply blend) renders the intended world colour with a bright core.
+function makeEnemyOrb(scene) {
+  const g = scene.add.graphics();
+  g.fillStyle(0xcfd6ff, 1); g.fillCircle(4, 4, 4);
+  g.fillStyle(0xffffff, 1); g.fillCircle(3.5, 3.5, 2);
+  g.generateTexture('enemyOrb', 8, 8);
+  g.destroy();
+}
+
 // ---------------------------------------------------------------------------
 // Star background — tiled scrolling texture
 function makeStarTexture(scene) {
@@ -178,5 +188,6 @@ export function generateAllSprites(scene) {
   makeBullet2(scene);
   makeBullet3(scene);
   makeEnemyBullet(scene);
+  makeEnemyOrb(scene);
   makeStarTexture(scene);
 }

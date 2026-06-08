@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { generateAllSprites } from '../sprites.js';
+import { generateBossSprites } from '../bosses.js';
 import { generateWorldTextures } from '../backgrounds.js';
 import { SHIPS } from '../shipState.js';
 
@@ -29,6 +30,7 @@ export default class BootScene extends Phaser.Scene {
 
   preload() {
     generateAllSprites(this);
+    generateBossSprites(this);
     generateWorldTextures(this);
 
     SHIPS.forEach(ship => this.load.image(ship.key, ship.url));

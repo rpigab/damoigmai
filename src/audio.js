@@ -96,4 +96,23 @@ export const sfx = {
     noise(0.6, 0.6);
     tone(200, 30, 0.5, 'sawtooth', 0.3);
   },
+
+  // Boss appears — descending two-tone alarm klaxon
+  bossWarn() {
+    tone(330, 247, 0.35, 'square', 0.22);
+    setTimeout(() => tone(294, 220, 0.4, 'square', 0.2), 180);
+  },
+
+  // Boss enrages (50% HP) — quick rising warble
+  bossEnrage() {
+    tone(440, 880, 0.18, 'sawtooth', 0.18);
+    setTimeout(() => tone(523, 1046, 0.2, 'sawtooth', 0.16), 90);
+  },
+
+  // Boss destroyed — layered booms + falling sweep
+  bossDie() {
+    noise(0.9, 0.6);
+    tone(160, 30, 0.7, 'sawtooth', 0.32);
+    setTimeout(() => { noise(0.6, 0.5); tone(120, 24, 0.6, 'square', 0.25); }, 220);
+  },
 };
