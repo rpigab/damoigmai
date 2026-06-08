@@ -109,8 +109,9 @@ export default class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.enemyBullets, this.cloneGroup, this.onEnemyBulletHitClone, null, this);
     this.physics.add.overlap(this.cloneGroup,   this.powerups,   this.onPickupPowerup,        null, this);
 
-    // Touch controls — only on touch devices; hidden by the 'connected' handler above.
-    const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    // Touch controls — on touch devices, or when forced via localStorage.
+    const hasTouch = localStorage.getItem('tactileControl') === 'true'
+      || ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
     this.tc = hasTouch ? createTouchControls(this) : null;
     if (this.tc && data.fireToggle) this.tc.setFireToggle(true);
 

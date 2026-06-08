@@ -18,7 +18,7 @@ const config = {
   scene: [BootScene, MenuScene, ControlsScene, ShipSelectScene, GameScene, PauseScene],
   scale: {
     mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    autoCenter: Phaser.Scale.NO_CENTER,
     width: 480,
     height: 270,
   },
