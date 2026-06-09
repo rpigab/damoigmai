@@ -1113,11 +1113,29 @@ export default class GameScene extends Phaser.Scene {
         });
       }
 
-      const hint = 'ESPACE / A : rejouer      ÉCHAP / B : menu';
       const hintY = this.mode === 'endless' ? H / 2 + 78 : H / 2 + 22;
-      this.add.text(W / 2, hintY, hint, {
-        fontFamily: 'Arial', fontSize: '9px', color: '#5a6e82',
-      }).setOrigin(0.5).setDepth(31);
+
+      const btnReplay = this.add.text(W / 2 - 52, hintY, 'REJOUER', {
+        fontFamily: 'Arial', fontSize: '9px', color: '#5577aa',
+      }).setOrigin(0.5).setDepth(31).setInteractive({ useHandCursor: true });
+      btnReplay.on('pointerover', () => btnReplay.setColor('#00ccff'));
+      btnReplay.on('pointerout',  () => btnReplay.setColor('#5577aa'));
+      btnReplay.on('pointerdown', () => {
+        if (!this.gameOverReady) return;
+        this.gameOverReady = false;
+        this.doRestart();
+      });
+
+      const btnMenu = this.add.text(W / 2 + 52, hintY, 'MENU', {
+        fontFamily: 'Arial', fontSize: '9px', color: '#5577aa',
+      }).setOrigin(0.5).setDepth(31).setInteractive({ useHandCursor: true });
+      btnMenu.on('pointerover', () => btnMenu.setColor('#00ccff'));
+      btnMenu.on('pointerout',  () => btnMenu.setColor('#5577aa'));
+      btnMenu.on('pointerdown', () => {
+        if (!this.gameOverReady) return;
+        this.gameOverReady = false;
+        this.scene.start('MenuScene');
+      });
 
       this.gameOverReady = true;
     });
